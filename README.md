@@ -65,7 +65,6 @@ M1 — Sync ingest (CLI)
 - [x] slog structured logging wired up (JSON handler, level configurable via env).
 - [x] meta.db SQLite: snapshots table only.
 - [x] simplearchive add <url>: create row → mkdir archive/{timestamp}/ → wget inline (output.html, favicon.ico, headers.json) → write AB-compatible per-snapshot index.json → update row → print summary.
-- [ ] URL validation + response-size cap + timeouts (security baseline from day one).
 - [ ] Acceptance: re-scan via archivebox init succeeds.
 
 M1.5 — Worker split
@@ -97,6 +96,9 @@ M5 — Reliability + config
 M6 - Search
 - [ ] Full-text search across URL, title, content
 - [ ] Semantic search across the same
+
+Deferred
+- [ ] URL validation + response-size cap + timeouts.
 
 ## Contributing
 
