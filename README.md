@@ -36,7 +36,9 @@ Everything gets built into a docker image that gets deployed.
 ## Milestones
 
 M1 — Sync ingest (CLI)
-- [ ] Go module, slog, Dockerfile stub.
+- [ ] Dockerfile stub (builder image with Go + tooling for local dev).
+- [ ] Go module (`go mod init`) + empty `main.go` that builds inside the Docker dev container.
+- [ ] slog structured logging wired up (JSON handler, level configurable via env).
 - [ ] meta.db SQLite: snapshots table only.
 - [ ] simplearchive add <url>: create row → mkdir archive/{timestamp}/ → wget inline (output.html, favicon.ico, headers.json) → write AB-compatible per-snapshot index.json → update row → print summary.
 - [ ] URL validation + response-size cap + timeouts (security baseline from day one).
