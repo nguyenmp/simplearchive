@@ -39,8 +39,8 @@ func TestRun_addStub_printsWouldArchive(t *testing.T) {
 	if got != 0 {
 		t.Fatalf("exit = %d, want 0", got)
 	}
-	if !strings.Contains(out.String(), `would archive "https://example.com"`) {
-		t.Fatalf("stdout = %q, want would-archive line", out.String())
+	if !strings.Contains(out.String(), `would archive "https://example.com" at `) {
+		t.Fatalf("stdout = %q, want would-archive line with timestamp", out.String())
 	}
 }
 

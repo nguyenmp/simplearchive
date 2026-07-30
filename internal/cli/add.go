@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+
+	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
 // runAdd implements `simplearchive add <url>`.
@@ -13,7 +15,8 @@ func (c *CLI) runAdd(ctx context.Context, args []string) int {
 	}
 	url := args[0]
 
-	// Stub: will be wired up incrementally in later commits.
-	fmt.Fprintf(c.Stdout, "would archive %q\n", url)
+	ts := snapshot.NewTimestamp()
+	c.Logger.Info("add", "url", url, "timestamp", snapshot.Format(ts))
+	fmt.Fprintf(c.Stdout, "would archive %q at %s\n", url, snapshot.Format(ts))
 	return 0
 }
