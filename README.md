@@ -47,6 +47,8 @@ The dev container keeps the module cache in a named volume (`go-mod`) so rebuild
 
 I often have [the official ArchiveBox repo](https://github.com/ArchiveBox/ArchiveBox) checked out as a sibling as ~/ArchiveBoxOfficial/ for reference.
 
+Commits should be very small and self-contained.  Tasks should be broken up into many small understandable commits.  Not one commit per end-goal.
+
 ## Environment Variables
 
 | Variable     | Default | Description                                                                                          |
