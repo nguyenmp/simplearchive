@@ -83,7 +83,7 @@ M1 — Sync ingest (CLI)
 - [x] Acceptance: re-scan via archivebox init succeeds.
 
 M2 — Read + serve + web add
-- [ ] Import 706 existing snapshots into meta.db (scan archive/*/index.json).
+- [x] Import 706 existing snapshots into meta.db (scan archive/*/index.json).
 - [ ] simplearchive serve: HTTP server (chi). SQLite WAL + short transactions.
 - [ ] HTMX list/detail views, tailwind. Add-URL form. Static file server (path-scoped + CSP sandbox + nosniff).
 - [ ] Local-run only.
