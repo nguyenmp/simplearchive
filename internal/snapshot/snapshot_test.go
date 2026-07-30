@@ -45,6 +45,59 @@ func TestFormat_matchesABSampleShape(t *testing.T) {
 	}
 }
 
+func TestParse_roundTripsFormat(t *testing.T) {
+	t.Parallel()
+	cases := []int64{
+		1728277530511,
+		0,
+		1000,
+		1001,
+		999,
+		1728277530000,
+		1785453601944,
+	}
+	for _, ms := range cases {
+		got, err := Parse(Format(ms))
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", Format(ms), err)
+		}
+		if got != ms {
+			t.Errorf("Parse(Format(%d)) = %d, want %d", ms, got, ms)
+		}
+	}
+}
+
+func TestParse_acceptsShortFraction(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		s    string
+		want int64
+	}{
+		{"1.5", 1500},
+		{"1.0005", 1000}, // 1.000500 -> micros 500 -> /1000 = 0 (ms precision)
+		{"0.1", 100},
+	}
+	for _, tc := range cases {
+		got, err := Parse(tc.s)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", tc.s, err)
+		}
+		if got != tc.want {
+			t.Errorf("Parse(%q) = %d, want %d", tc.s, got, tc.want)
+		}
+	}
+}
+
+func TestParse_rejectsMalformed(t *testing.T) {
+	t.Parallel()
+	bad := []string{"", "abc", "1.1234567", "1.2.3", "x.1", "1.x"}
+	for _, s := range bad {
+		if _, err := Parse(s); err == nil {
+			t.Errorf("Parse(%q) returned nil error, want error", s)
+		}
+	}
+}
+
 func TestNewTimestamp_isEpochMs(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UnixMilli()
