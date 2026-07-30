@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/extractors/headers"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 	"github.com/nguyenmp/simplearchive/internal/meta"
@@ -53,7 +54,7 @@ func TestRun_addNoDB_reportsError(t *testing.T) {
 	}
 }
 
-func TestRun_add_createsPendingRowAndFetches(t *testing.T) {
+func TestRun_add_archivesSnapshot(t *testing.T) {
 	t.Parallel()
 	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -74,19 +75,22 @@ func TestRun_add_createsPendingRowAndFetches(t *testing.T) {
 	if got != 0 {
 		t.Fatalf("exit = %d, want 0", got)
 	}
-	if !strings.Contains(out.String(), "status=pending") {
-		t.Fatalf("stdout = %q, want status=pending", out.String())
+	if !strings.Contains(out.String(), "archived ") {
+		t.Fatalf("stdout = %q, want archived summary", out.String())
 	}
 
-	var status, tsStr string
-	if err := db.QueryRow("SELECT status, printf('%d', timestamp) FROM snapshots WHERE url = ?", srv.URL).Scan(&status, &tsStr); err != nil {
+	var status, tsStr, title string
+	if err := db.QueryRow("SELECT status, printf('%d', timestamp), title FROM snapshots WHERE url = ?", srv.URL).Scan(&status, &tsStr, &title); err != nil {
 		t.Fatalf("query snapshot: %v", err)
 	}
-	if status != "pending" {
-		t.Fatalf("status = %q, want pending", status)
+	if status != "succeeded" {
+		t.Fatalf("status = %q, want succeeded", status)
+	}
+	if title != "Example" {
+		t.Fatalf("title = %q, want Example", title)
 	}
 
-	// The snapshot directory and output.html must exist under the archive root.
+	// The snapshot directory, output.html, headers.json, and index.json must exist.
 	var ts int64
 	if _, err := fmt.Sscan(tsStr, &ts); err != nil {
 		t.Fatalf("parse timestamp %q: %v", tsStr, err)
@@ -102,10 +106,11 @@ func TestRun_add_createsPendingRowAndFetches(t *testing.T) {
 	if string(gotHTML) != body {
 		t.Fatalf("output.html = %q, want %q", gotHTML, body)
 	}
-
-	// headers.json must also be written.
 	if _, err := os.Stat(filepath.Join(dir, headers.OutputFile)); err != nil {
 		t.Fatalf("headers.json not created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, archive.IndexFile)); err != nil {
+		t.Fatalf("index.json not created: %v", err)
 	}
 }
 
