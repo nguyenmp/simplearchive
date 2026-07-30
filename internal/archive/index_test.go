@@ -72,6 +72,27 @@ func TestWriteIndex_writesLinkSchema(t *testing.T) {
 	if h, ok := got.History["favicon"]; !ok || len(h) != 1 || h[0].Output != "favicon.ico" {
 		t.Errorf("history.favicon = %v, want one entry with output favicon.ico", got.History["favicon"])
 	}
+
+	// ArchiveBox's ArchiveResult schema requires cmd to be a list (never null)
+	// and every element to be a non-empty string.
+	for method, results := range got.History {
+		if len(results) != 1 {
+			t.Fatalf("history.%s has %d entries, want 1", method, len(results))
+		}
+		r := results[0]
+		if r.Cmd == nil {
+			t.Errorf("history.%s.cmd = nil, want non-nil list", method)
+			continue
+		}
+		for _, arg := range r.Cmd {
+			if arg == "" {
+				t.Errorf("history.%s.cmd contains empty arg", method)
+			}
+		}
+	}
+	if dom, ok := got.History["dom"]; !ok || len(dom) != 1 || dom[0].Cmd[0] != "wget" {
+		t.Errorf("history.dom.cmd = %v, want wget invocation", got.History["dom"])
+	}
 }
 
 func TestWriteIndex_nullTitleWhenEmpty(t *testing.T) {

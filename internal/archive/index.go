@@ -66,8 +66,10 @@ func WriteIndex(data IndexData) error {
 	latest := map[string]string{}
 	history := map[string][]archiveResult{}
 	for _, out := range data.Outputs {
-		latest[extractorFor(out)] = out
-		history[extractorFor(out)] = []archiveResult{{
+		extractor := extractorFor(out)
+		latest[extractor] = out
+		history[extractor] = []archiveResult{{
+			Cmd:     commandFor(extractor, data, u),
 			Output:  out,
 			Pwd:     data.Dir,
 			Schema:  "ArchiveResult",
@@ -79,6 +81,7 @@ func WriteIndex(data IndexData) error {
 	if hasTitle {
 		latest["title"] = title
 		history["title"] = []archiveResult{{
+			Cmd:     commandFor("title", data, u),
 			Output:  title,
 			Pwd:     data.Dir,
 			Schema:  "ArchiveResult",
@@ -132,6 +135,22 @@ func extractorFor(filename string) string {
 		return "headers"
 	default:
 		return filename
+	}
+}
+
+// commandFor returns the shell command list recorded in an ArchiveResult's
+// cmd field for an extractor. Extractors that do not run a shell command
+// (headers via net/http, title via HTML parsing) get an empty list, which
+// ArchiveBox's schema accepts. The wget-based extractors record the actual
+// invocation so the snapshot is debuggable and reimportable.
+func commandFor(extractor string, data IndexData, u *url.URL) []string {
+	switch extractor {
+	case "dom":
+		return []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(data.Dir, "output.html"), data.URL}
+	case "favicon":
+		return []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(data.Dir, "favicon.ico"), "https://www.google.com/s2/favicons?domain=" + u.Hostname()}
+	default:
+		return []string{}
 	}
 }
 
