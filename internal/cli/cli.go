@@ -6,6 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+
+	"github.com/nguyenmp/simplearchive/internal/meta"
 )
 
 // CLI holds shared dependencies for all subcommands.
@@ -13,6 +15,7 @@ type CLI struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Logger *slog.Logger
+	DB     *meta.DB
 }
 
 // Run dispatches a subcommand based on args[0]. It returns the process exit code.

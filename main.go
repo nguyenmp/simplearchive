@@ -26,6 +26,6 @@ func main() {
 	defer db.Close()
 	logger.Info("opened meta.db", "path", dbPath)
 
-	c := &cli.CLI{Logger: logger}
+	c := &cli.CLI{Logger: logger, DB: db}
 	os.Exit(c.Run(context.Background(), os.Args[1:]))
 }
