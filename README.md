@@ -40,17 +40,25 @@ We develop inside Docker so the only host dependency is Docker itself (no need t
 Workflow:
 1. `docker build -f Dockerfile.dev -t simplearchive-dev .` — builds the dev image with Go toolchain + extractors.
 2. `docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test ./...` — run tests.
-3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted.
+3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted. Set `-e LOG_LEVEL=debug` for verbose logs (see [Environment Variables](#environment-variables)).
 4. `docker run --rm -it -v "$PWD:/app" -w /app simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
 
 The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted to `/app` so edits on the host are reflected instantly — no rebuild needed for code-only changes.
+
+## Environment Variables
+
+| Variable     | Default | Description                                                                                          |
+| ------------ | ------- | ---------------------------------------------------------------------------------------------------- |
+| `LOG_LEVEL`  | `info`  | Structured log level for the JSON slog handler. One of `debug`, `info`, `warn`, `warning`, `error`. |
+
+Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 
 ## Milestones
 
 M1 — Sync ingest (CLI)
 - [x] Dockerfile stub (builder image with Go + tooling for local dev).
 - [x] Go module (`go mod init`) + empty `main.go` that builds inside the Docker dev container.
-- [ ] slog structured logging wired up (JSON handler, level configurable via env).
+- [x] slog structured logging wired up (JSON handler, level configurable via env).
 - [ ] meta.db SQLite: snapshots table only.
 - [ ] simplearchive add <url>: create row → mkdir archive/{timestamp}/ → wget inline (output.html, favicon.ico, headers.json) → write AB-compatible per-snapshot index.json → update row → print summary.
 - [ ] URL validation + response-size cap + timeouts (security baseline from day one).
