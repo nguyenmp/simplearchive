@@ -39,11 +39,11 @@ We develop inside Docker so the only host dependency is Docker itself (no need t
 
 Workflow:
 1. `docker build -f Dockerfile.dev -t simplearchive-dev .` — builds the dev image with Go toolchain + extractors.
-2. `docker run --rm -v "$PWD:/work" -w /work simplearchive-dev go test ./...` — run tests.
-3. `docker run --rm -it -v "$PWD:/work" -w /work -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted.
-4. `docker run --rm -it -v "$PWD:/work" -w /work simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
+2. `docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test ./...` — run tests.
+3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted.
+4. `docker run --rm -it -v "$PWD:/app" -w /app simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
 
-The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted so edits on the host are reflected instantly — no rebuild needed for code-only changes.
+The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted to `/app` so edits on the host are reflected instantly — no rebuild needed for code-only changes.
 
 ## Milestones
 
