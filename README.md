@@ -71,3 +71,7 @@ M5 — Reliability + config
 M6 - Search
 - [ ] Full-text search across URL, title, content
 - [ ] Semantic search across the same
+
+## Contributing
+
+This project uses [jj](https://www.jj-vcs.dev/latest/) to work with git.
