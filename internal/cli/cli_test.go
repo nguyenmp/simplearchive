@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
+	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 )
 
 func TestRun_noArgs_printsUsage(t *testing.T) {
@@ -49,8 +52,14 @@ func TestRun_addNoDB_reportsError(t *testing.T) {
 	}
 }
 
-func TestRun_add_createsPendingRow(t *testing.T) {
+func TestRun_add_createsPendingRowAndFetches(t *testing.T) {
 	t.Parallel()
+	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
 	db, err := meta.Open(context.Background(), ":memory:")
 	if err != nil {
 		t.Fatalf("meta.Open: %v", err)
@@ -60,7 +69,7 @@ func TestRun_add_createsPendingRow(t *testing.T) {
 	out := &bytes.Buffer{}
 	root := filepath.Join(t.TempDir(), "archive")
 	c := &CLI{Stdout: out, Stderr: &bytes.Buffer{}, DB: db, ArchiveRoot: root}
-	got := c.Run(context.Background(), []string{"add", "https://example.com"})
+	got := c.Run(context.Background(), []string{"add", srv.URL})
 	if got != 0 {
 		t.Fatalf("exit = %d, want 0", got)
 	}
@@ -69,14 +78,14 @@ func TestRun_add_createsPendingRow(t *testing.T) {
 	}
 
 	var status, tsStr string
-	if err := db.QueryRow("SELECT status, printf('%d', timestamp) FROM snapshots WHERE url = ?", "https://example.com").Scan(&status, &tsStr); err != nil {
+	if err := db.QueryRow("SELECT status, printf('%d', timestamp) FROM snapshots WHERE url = ?", srv.URL).Scan(&status, &tsStr); err != nil {
 		t.Fatalf("query snapshot: %v", err)
 	}
 	if status != "pending" {
 		t.Fatalf("status = %q, want pending", status)
 	}
 
-	// The snapshot directory must exist under the archive root.
+	// The snapshot directory and output.html must exist under the archive root.
 	var ts int64
 	if _, err := fmt.Sscan(tsStr, &ts); err != nil {
 		t.Fatalf("parse timestamp %q: %v", tsStr, err)
@@ -84,6 +93,13 @@ func TestRun_add_createsPendingRow(t *testing.T) {
 	dir := filepath.Join(root, snapshot.Format(ts))
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		t.Fatalf("snapshot dir %q not created: %v", dir, err)
+	}
+	gotHTML, err := os.ReadFile(filepath.Join(dir, wget.OutputFile))
+	if err != nil {
+		t.Fatalf("read output.html: %v", err)
+	}
+	if string(gotHTML) != body {
+		t.Fatalf("output.html = %q, want %q", gotHTML, body)
 	}
 }
 

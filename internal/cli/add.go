@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
+	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
@@ -33,6 +34,12 @@ func (c *CLI) runAdd(ctx context.Context, args []string) int {
 	if err != nil {
 		c.Logger.Error("add: mkdir snapshot", "url", url, "err", err)
 		fmt.Fprintf(c.Stderr, "add: failed to create snapshot dir: %v\n", err)
+		return 1
+	}
+
+	if _, err := wget.Fetch(ctx, url, dir); err != nil {
+		c.Logger.Error("add: wget", "url", url, "err", err)
+		fmt.Fprintf(c.Stderr, "add: failed to fetch %q: %v\n", url, err)
 		return 1
 	}
 
