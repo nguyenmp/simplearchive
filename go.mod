@@ -1,3 +1,3 @@
 module github.com/nguyenmp/simplearchive
 
-go 1.24.13
+go 1.26.5
