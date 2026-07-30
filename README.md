@@ -33,6 +33,18 @@ Extractors:
 
 Everything gets built into a docker image that gets deployed.
 
+## Local Development
+
+We develop inside Docker so the only host dependency is Docker itself (no need to install Go, wget, yt-dlp, etc. on the host machine). The same `Dockerfile.dev` doubles as the basis for the production image later.
+
+Workflow:
+1. `docker build -f Dockerfile.dev -t simplearchive-dev .` — builds the dev image with Go toolchain + extractors.
+2. `docker run --rm -v "$PWD:/work" -w /work simplearchive-dev go test ./...` — run tests.
+3. `docker run --rm -it -v "$PWD:/work" -w /work -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted.
+4. `docker run --rm -it -v "$PWD:/work" -w /work simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
+
+The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted so edits on the host are reflected instantly — no rebuild needed for code-only changes.
+
 ## Milestones
 
 M1 — Sync ingest (CLI)
