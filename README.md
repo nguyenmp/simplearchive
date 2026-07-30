@@ -45,6 +45,8 @@ Workflow:
 
 The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted to `/app` so edits on the host are reflected instantly — no rebuild needed for code-only changes.
 
+I often have [the official ArchiveBox repo](https://github.com/ArchiveBox/ArchiveBox) checked out as a sibling as ~/ArchiveBoxOfficial/ for reference.
+
 ## Environment Variables
 
 | Variable     | Default | Description                                                                                          |
