@@ -12,10 +12,11 @@ import (
 
 // CLI holds shared dependencies for all subcommands.
 type CLI struct {
-	Stdout io.Writer
-	Stderr io.Writer
-	Logger *slog.Logger
-	DB     *meta.DB
+	Stdout      io.Writer
+	Stderr      io.Writer
+	Logger      *slog.Logger
+	DB          *meta.DB
+	ArchiveRoot string
 }
 
 // Run dispatches a subcommand based on args[0]. It returns the process exit code.
@@ -28,6 +29,9 @@ func (c *CLI) Run(ctx context.Context, args []string) int {
 	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()
+	}
+	if c.ArchiveRoot == "" {
+		c.ArchiveRoot = "archive"
 	}
 
 	if len(args) < 1 {

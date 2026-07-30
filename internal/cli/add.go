@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
@@ -27,7 +28,15 @@ func (c *CLI) runAdd(ctx context.Context, args []string) int {
 		fmt.Fprintf(c.Stderr, "add: failed to create snapshot: %v\n", err)
 		return 1
 	}
-	c.Logger.Info("add", "url", url, "timestamp", snapshot.Format(resolved), "status", "pending")
-	fmt.Fprintf(c.Stdout, "queued %s url=%q status=pending\n", snapshot.Format(resolved), url)
+
+	dir, err := archive.MkdirSnapshot(c.ArchiveRoot, resolved)
+	if err != nil {
+		c.Logger.Error("add: mkdir snapshot", "url", url, "err", err)
+		fmt.Fprintf(c.Stderr, "add: failed to create snapshot dir: %v\n", err)
+		return 1
+	}
+
+	c.Logger.Info("add", "url", url, "timestamp", snapshot.Format(resolved), "dir", dir, "status", "pending")
+	fmt.Fprintf(c.Stdout, "queued %s dir=%s url=%q status=pending\n", snapshot.Format(resolved), dir, url)
 	return 0
 }
