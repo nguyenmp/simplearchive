@@ -1,4 +1,10 @@
+# The compiled binary
 /simplearchive
+
+# Local-dev database for testing
 /meta.db
 /meta.db-shm
 /meta.db-wal
+
+# Archived files for lcoal testing
+/archive/*
