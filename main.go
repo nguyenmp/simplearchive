@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/nguyenmp/simplearchive/internal/cli"
 	"github.com/nguyenmp/simplearchive/internal/logging"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 )
@@ -24,4 +25,7 @@ func main() {
 	}
 	defer db.Close()
 	logger.Info("opened meta.db", "path", dbPath)
+
+	c := &cli.CLI{Logger: logger}
+	os.Exit(c.Run(context.Background(), os.Args[1:]))
 }

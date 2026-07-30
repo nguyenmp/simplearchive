@@ -1,1 +1,4 @@
 /simplearchive
+/meta.db
+/meta.db-shm
+/meta.db-wal
