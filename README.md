@@ -49,6 +49,21 @@ I often have [the official ArchiveBox repo](https://github.com/ArchiveBox/Archiv
 
 Commits should be very small and self-contained.  Tasks should be broken up into many small understandable commits.  Not one commit per end-goal.
 
+Testing integration with ArchiveBox:
+```
+# Make filesystem sandbox
+cd $(mktemp -d)
+mkdir -p archivebox-data
+cp -r ~/simplearchive/archive/ archivebox-data/archive/
+
+# Launch ArchiveBox service
+docker run -p 8000:8000 -v ./archivebox-data:/data archivebox/archivebox:stable
+
+# Get shell
+docker run -it -v ./archivebox-data:/data archivebox/archivebox:stable /bin/sh
+$ archivebox init
+```
+
 ## Environment Variables
 
 | Variable     | Default | Description                                                                                          |
