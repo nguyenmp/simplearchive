@@ -18,7 +18,7 @@ const IndexFile = "index.json"
 
 // IndexData describes a snapshot to write to index.json.
 type IndexData struct {
-	Timestamp int64  // epoch ms
+	Timestamp int64 // epoch ms
 	URL       string
 	Title     string // may be empty
 	Dir       string // snapshot directory (for pwd in history entries)
@@ -29,39 +29,39 @@ type IndexData struct {
 // into meta.db. Title is the empty string when the index's "title" field is
 // null or absent.
 type IndexEntry struct {
-	Timestamp int64  // epoch ms
-	URL       string
-	Title     string
+	Timestamp  int64 // epoch ms
+	URL        string
+	Title      string
 	IsArchived bool
 }
 
 // archiveResult is a single entry in the "history" map, matching ArchiveBox's
 // ArchiveResult schema (subset of fields).
 type archiveResult struct {
-	Cmd      []string  `json:"cmd"`
-	Output   string    `json:"output"`
-	Pwd      string    `json:"pwd"`
-	Schema   string    `json:"schema"`
-	StartTs  time.Time `json:"start_ts"`
-	EndTs    time.Time `json:"end_ts"`
-	Status   string    `json:"status"`
+	Cmd     []string  `json:"cmd"`
+	Output  string    `json:"output"`
+	Pwd     string    `json:"pwd"`
+	Schema  string    `json:"schema"`
+	StartTs time.Time `json:"start_ts"`
+	EndTs   time.Time `json:"end_ts"`
+	Status  string    `json:"status"`
 }
 
 type linkJSON struct {
-	Schema     string            `json:"schema"`
-	URL        string            `json:"url"`
-	Timestamp  string            `json:"timestamp"`
-	Title      *string           `json:"title"`
-	Tags       *[]string         `json:"tags"`
-	TagsStr    string            `json:"tags_str"`
-	Sources    []string          `json:"sources"`
-	IsArchived bool             `json:"is_archived"`
-	IsStatic   bool             `json:"is_static"`
-	Domain     string            `json:"domain"`
-	BaseURL    string            `json:"base_url"`
-	Scheme     string            `json:"scheme"`
-	Path       string            `json:"path"`
-	Latest     map[string]string `json:"latest"`
+	Schema     string                     `json:"schema"`
+	URL        string                     `json:"url"`
+	Timestamp  string                     `json:"timestamp"`
+	Title      *string                    `json:"title"`
+	Tags       *[]string                  `json:"tags"`
+	TagsStr    string                     `json:"tags_str"`
+	Sources    []string                   `json:"sources"`
+	IsArchived bool                       `json:"is_archived"`
+	IsStatic   bool                       `json:"is_static"`
+	Domain     string                     `json:"domain"`
+	BaseURL    string                     `json:"base_url"`
+	Scheme     string                     `json:"scheme"`
+	Path       string                     `json:"path"`
+	Latest     map[string]string          `json:"latest"`
 	History    map[string][]archiveResult `json:"history"`
 }
 

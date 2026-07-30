@@ -129,9 +129,9 @@ func TestReadIndex_decodesABSnapshot(t *testing.T) {
 	data := IndexData{
 		Timestamp: 1728277530511,
 		URL:       "https://example.com/path",
-		Title:      "Example Page",
-		Dir:        dir,
-		Outputs:    []string{"output.html", "favicon.ico", "headers.json"},
+		Title:     "Example Page",
+		Dir:       dir,
+		Outputs:   []string{"output.html", "favicon.ico", "headers.json"},
 	}
 	if err := WriteIndex(data); err != nil {
 		t.Fatalf("WriteIndex: %v", err)
@@ -225,9 +225,9 @@ func TestScan_skipsDirsWithoutIndex(t *testing.T) {
 	if err := WriteIndex(IndexData{
 		Timestamp: 1700000000000,
 		URL:       "https://example.com",
-		Title:      "One",
-		Dir:        dir,
-		Outputs:    []string{"output.html"},
+		Title:     "One",
+		Dir:       dir,
+		Outputs:   []string{"output.html"},
 	}); err != nil {
 		t.Fatalf("WriteIndex: %v", err)
 	}

@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -23,6 +24,12 @@ func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, e
 	return ts, nil
 }
 
+// execer is satisfied by both *sql.DB and *sql.Tx, letting the upsert SQL run
+// either standalone or inside an import transaction.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 // UpsertSnapshot inserts or refreshes a snapshot row from an on-disk index.json
 // entry. It is the import path's counterpart to the Create/Update pair used by
 // 'add': an existing row (matched by timestamp) has its url, title, is_archived,
@@ -30,6 +37,22 @@ func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, e
 // inserted with created_at = updated_at = the snapshot's own timestamp. This
 // makes 'simplearchive import' idempotent and safe to re-run.
 func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
+	if err := upsertSnapshot(ctx, d.DB, e); err != nil {
+		return fmt.Errorf("meta.UpsertSnapshot: %w", err)
+	}
+	return nil
+}
+
+// UpsertSnapshotTx runs the same upsert as UpsertSnapshot against an in-flight
+// transaction so the import path can batch many snapshots into one commit.
+func UpsertSnapshotTx(ctx context.Context, tx *sql.Tx, e archive.IndexEntry) error {
+	if err := upsertSnapshot(ctx, tx, e); err != nil {
+		return fmt.Errorf("meta.UpsertSnapshotTx: %w", err)
+	}
+	return nil
+}
+
+func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
 	var titleArg any
 	if e.Title != "" {
 		titleArg = e.Title
@@ -38,7 +61,7 @@ func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
 	if e.IsArchived {
 		isArchived = 1
 	}
-	_, err := d.ExecContext(ctx, `
+	_, err := q.ExecContext(ctx, `
 		INSERT INTO snapshots (timestamp, url, title, status, is_archived, created_at, updated_at)
 		VALUES (?, ?, ?, 'succeeded', ?, ?, ?)
 		ON CONFLICT(timestamp) DO UPDATE SET
@@ -48,10 +71,7 @@ func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
 			status = excluded.status,
 			updated_at = excluded.updated_at`,
 		e.Timestamp, e.URL, titleArg, isArchived, e.Timestamp, e.Timestamp)
-	if err != nil {
-		return fmt.Errorf("meta.UpsertSnapshot: upsert: %w", err)
-	}
-	return nil
+	return err
 }
 
 // UpdateSnapshot marks a snapshot as successfully archived, recording its title.
