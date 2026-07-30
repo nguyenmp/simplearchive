@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
+	"github.com/nguyenmp/simplearchive/internal/extractors/headers"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
@@ -41,6 +42,12 @@ func (c *CLI) runAdd(ctx context.Context, args []string) int {
 		c.Logger.Error("add: wget", "url", url, "err", err)
 		fmt.Fprintf(c.Stderr, "add: failed to fetch %q: %v\n", url, err)
 		return 1
+	}
+	if _, err := wget.FetchFavicon(ctx, url, dir); err != nil {
+		c.Logger.Warn("add: favicon", "url", url, "err", err)
+	}
+	if _, err := headers.Fetch(ctx, url, dir); err != nil {
+		c.Logger.Warn("add: headers", "url", url, "err", err)
 	}
 
 	c.Logger.Info("add", "url", url, "timestamp", snapshot.Format(resolved), "dir", dir, "status", "pending")

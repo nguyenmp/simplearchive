@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nguyenmp/simplearchive/internal/extractors/headers"
+	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
-	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 )
 
 func TestRun_noArgs_printsUsage(t *testing.T) {
@@ -100,6 +101,11 @@ func TestRun_add_createsPendingRowAndFetches(t *testing.T) {
 	}
 	if string(gotHTML) != body {
 		t.Fatalf("output.html = %q, want %q", gotHTML, body)
+	}
+
+	// headers.json must also be written.
+	if _, err := os.Stat(filepath.Join(dir, headers.OutputFile)); err != nil {
+		t.Fatalf("headers.json not created: %v", err)
 	}
 }
 

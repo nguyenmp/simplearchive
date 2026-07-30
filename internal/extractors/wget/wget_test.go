@@ -43,3 +43,31 @@ func TestFetch_badURL_returnsError(t *testing.T) {
 		t.Fatal("Fetch on unreachable URL returned nil error")
 	}
 }
+
+func TestFaviconURL_buildsGoogleServiceURL(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"https://example.com/path", "https://www.google.com/s2/favicons?domain=example.com"},
+		{"https://youtu.be/j7P5szP95nI", "https://www.google.com/s2/favicons?domain=youtu.be"},
+		{"https://www.example.com:8080/x", "https://www.google.com/s2/favicons?domain=www.example.com"},
+	}
+	for _, tc := range cases {
+		got, err := faviconURL(tc.in)
+		if err != nil {
+			t.Fatalf("faviconURL(%q): %v", tc.in, err)
+		}
+		if got != tc.want {
+			t.Errorf("faviconURL(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestFaviconURL_rejectsInvalidURL(t *testing.T) {
+	t.Parallel()
+	if _, err := faviconURL("not a url"); err == nil {
+		t.Fatal("faviconURL on invalid URL returned nil error")
+	}
+}
