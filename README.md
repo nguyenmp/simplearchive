@@ -64,7 +64,7 @@ M1 — Sync ingest (CLI)
 - [x] Go module (`go mod init`) + empty `main.go` that builds inside the Docker dev container.
 - [x] slog structured logging wired up (JSON handler, level configurable via env).
 - [x] meta.db SQLite: snapshots table only.
-- [ ] simplearchive add <url>: create row → mkdir archive/{timestamp}/ → wget inline (output.html, favicon.ico, headers.json) → write AB-compatible per-snapshot index.json → update row → print summary.
+- [x] simplearchive add <url>: create row → mkdir archive/{timestamp}/ → wget inline (output.html, favicon.ico, headers.json) → write AB-compatible per-snapshot index.json → update row → print summary.
 - [ ] URL validation + response-size cap + timeouts (security baseline from day one).
 - [ ] Acceptance: re-scan via archivebox init succeeds.
 
