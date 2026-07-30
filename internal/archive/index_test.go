@@ -122,3 +122,120 @@ func TestWriteIndex_nullTitleWhenEmpty(t *testing.T) {
 		t.Error("latest.title present, want absent for empty title")
 	}
 }
+
+func TestReadIndex_decodesABSnapshot(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	data := IndexData{
+		Timestamp: 1728277530511,
+		URL:       "https://example.com/path",
+		Title:      "Example Page",
+		Dir:        dir,
+		Outputs:    []string{"output.html", "favicon.ico", "headers.json"},
+	}
+	if err := WriteIndex(data); err != nil {
+		t.Fatalf("WriteIndex: %v", err)
+	}
+	got, err := ReadIndex(filepath.Join(dir, IndexFile))
+	if err != nil {
+		t.Fatalf("ReadIndex: %v", err)
+	}
+	if got.Timestamp != 1728277530511 {
+		t.Errorf("timestamp = %d, want 1728277530511", got.Timestamp)
+	}
+	if got.URL != "https://example.com/path" {
+		t.Errorf("url = %q", got.URL)
+	}
+	if got.Title != "Example Page" {
+		t.Errorf("title = %q, want Example Page", got.Title)
+	}
+	if !got.IsArchived {
+		t.Error("is_archived = false, want true")
+	}
+}
+
+func TestReadIndex_nullTitleBecomesEmpty(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := WriteIndex(IndexData{
+		Timestamp: 1700000000000,
+		URL:       "https://example.com",
+		Dir:       dir,
+		Outputs:   []string{"output.html"},
+	}); err != nil {
+		t.Fatalf("WriteIndex: %v", err)
+	}
+	got, err := ReadIndex(filepath.Join(dir, IndexFile))
+	if err != nil {
+		t.Fatalf("ReadIndex: %v", err)
+	}
+	if got.Title != "" {
+		t.Errorf("title = %q, want empty", got.Title)
+	}
+}
+
+func TestReadIndex_missingFileErrors(t *testing.T) {
+	t.Parallel()
+	if _, err := ReadIndex(filepath.Join(t.TempDir(), "missing.json")); err == nil {
+		t.Fatal("ReadIndex on missing file returned nil error")
+	}
+}
+
+func TestScan_collectsAndSortsSnapshots(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	// Two snapshots written out of order; Scan must return them sorted by ts.
+	for _, data := range []IndexData{
+		{Timestamp: 1700000000002, URL: "https://b.example.com", Title: "B", Dir: filepath.Join(root, snapshot.Format(1700000000002)), Outputs: []string{"output.html"}},
+		{Timestamp: 1700000000001, URL: "https://a.example.com", Title: "A", Dir: filepath.Join(root, snapshot.Format(1700000000001)), Outputs: []string{"output.html"}},
+	} {
+		if err := os.MkdirAll(data.Dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := WriteIndex(data); err != nil {
+			t.Fatalf("WriteIndex: %v", err)
+		}
+	}
+	got, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(entries) = %d, want 2", len(got))
+	}
+	if got[0].Timestamp != 1700000000001 || got[0].URL != "https://a.example.com" {
+		t.Errorf("entries[0] = %+v, want A", got[0])
+	}
+	if got[1].Timestamp != 1700000000002 || got[1].URL != "https://b.example.com" {
+		t.Errorf("entries[1] = %+v, want B", got[1])
+	}
+}
+
+func TestScan_skipsDirsWithoutIndex(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	// A stray directory with no index.json should be ignored, not error.
+	if err := os.MkdirAll(filepath.Join(root, "stray-no-index"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, snapshot.Format(1700000000000))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteIndex(IndexData{
+		Timestamp: 1700000000000,
+		URL:       "https://example.com",
+		Title:      "One",
+		Dir:        dir,
+		Outputs:    []string{"output.html"},
+	}); err != nil {
+		t.Fatalf("WriteIndex: %v", err)
+	}
+	got, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != 1 || got[0].URL != "https://example.com" {
+		t.Fatalf("entries = %+v, want one example.com", got)
+	}
+}

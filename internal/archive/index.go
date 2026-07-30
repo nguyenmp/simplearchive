@@ -3,9 +3,11 @@ package archive
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
@@ -21,6 +23,16 @@ type IndexData struct {
 	Title     string // may be empty
 	Dir       string // snapshot directory (for pwd in history entries)
 	Outputs   []string
+}
+
+// IndexEntry is the subset of an on-disk index.json that simplearchive imports
+// into meta.db. Title is the empty string when the index's "title" field is
+// null or absent.
+type IndexEntry struct {
+	Timestamp int64  // epoch ms
+	URL       string
+	Title     string
+	IsArchived bool
 }
 
 // archiveResult is a single entry in the "history" map, matching ArchiveBox's
@@ -164,4 +176,56 @@ func baseURL(u *url.URL) string {
 		return u.Scheme + "://" + u.Host
 	}
 	return u.Scheme + "://" + u.Host
+}
+
+// ReadIndex decodes a single snapshot's index.json into an IndexEntry. The
+// timestamp is parsed from ArchiveBox's "seconds.microseconds" string form
+// into epoch milliseconds. A null or absent title becomes the empty string.
+func ReadIndex(path string) (IndexEntry, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return IndexEntry{}, fmt.Errorf("archive.ReadIndex: read %q: %w", path, err)
+	}
+	var doc linkJSON
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return IndexEntry{}, fmt.Errorf("archive.ReadIndex: unmarshal %q: %w", path, err)
+	}
+	ts, err := snapshot.Parse(doc.Timestamp)
+	if err != nil {
+		return IndexEntry{}, fmt.Errorf("archive.ReadIndex: %q: %w", path, err)
+	}
+	entry := IndexEntry{
+		Timestamp:  ts,
+		URL:        doc.URL,
+		IsArchived: doc.IsArchived,
+	}
+	if doc.Title != nil {
+		entry.Title = *doc.Title
+	}
+	return entry, nil
+}
+
+// Scan walks root looking for per-snapshot index.json files (root/<timestamp>/
+// index.json) and returns one IndexEntry per snapshot, sorted by timestamp
+// ascending. Directories without an index.json are skipped (logged at debug).
+// It returns an error if root itself cannot be globbed.
+func Scan(root string) ([]IndexEntry, error) {
+	pattern := filepath.Join(root, "*", IndexFile)
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("archive.Scan: glob %q: %w", pattern, err)
+	}
+	entries := make([]IndexEntry, 0, len(matches))
+	for _, p := range matches {
+		entry, err := ReadIndex(p)
+		if err != nil {
+			slog.Debug("archive.Scan: skipping unreadable index", "path", p, "err", err)
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp < entries[j].Timestamp
+	})
+	return entries, nil
 }
