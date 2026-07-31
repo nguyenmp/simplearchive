@@ -13,7 +13,7 @@ func TestWriteIndex_writesLinkSchema(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	data := IndexData{
-		Timestamp: 1728277530511,
+		Timestamp: 1728277530511056,
 		URL:       "https://example.com/path/page",
 		Title:     "Example Page",
 		Dir:       dir,
@@ -39,8 +39,8 @@ func TestWriteIndex_writesLinkSchema(t *testing.T) {
 	if got.URL != "https://example.com/path/page" {
 		t.Errorf("url = %q", got.URL)
 	}
-	if got.Timestamp != snapshot.Format(1728277530511) {
-		t.Errorf("timestamp = %q, want %q", got.Timestamp, snapshot.Format(1728277530511))
+	if got.Timestamp != snapshot.Format(1728277530511056) {
+		t.Errorf("timestamp = %q, want %q", got.Timestamp, snapshot.Format(1728277530511056))
 	}
 	if got.Title == nil || *got.Title != "Example Page" {
 		t.Errorf("title = %v, want Example Page", got.Title)
@@ -99,7 +99,7 @@ func TestWriteIndex_nullTitleWhenEmpty(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	data := IndexData{
-		Timestamp: 1700000000000,
+		Timestamp: 1700000000000000,
 		URL:       "https://example.com",
 		Dir:       dir,
 		Outputs:   []string{"output.html"},
@@ -127,7 +127,7 @@ func TestReadIndex_decodesABSnapshot(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	data := IndexData{
-		Timestamp: 1728277530511,
+		Timestamp: 1728277530511056,
 		URL:       "https://example.com/path",
 		Title:     "Example Page",
 		Dir:       dir,
@@ -140,8 +140,8 @@ func TestReadIndex_decodesABSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadIndex: %v", err)
 	}
-	if got.Timestamp != 1728277530511 {
-		t.Errorf("timestamp = %d, want 1728277530511", got.Timestamp)
+	if got.Timestamp != 1728277530511056 {
+		t.Errorf("timestamp = %d, want 1728277530511056", got.Timestamp)
 	}
 	if got.URL != "https://example.com/path" {
 		t.Errorf("url = %q", got.URL)
@@ -158,7 +158,7 @@ func TestReadIndex_nullTitleBecomesEmpty(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	if err := WriteIndex(IndexData{
-		Timestamp: 1700000000000,
+		Timestamp: 1700000000000000,
 		URL:       "https://example.com",
 		Dir:       dir,
 		Outputs:   []string{"output.html"},
@@ -186,8 +186,8 @@ func TestScan_collectsAndSortsSnapshots(t *testing.T) {
 	root := t.TempDir()
 	// Two snapshots written out of order; Scan must return them sorted by ts.
 	for _, data := range []IndexData{
-		{Timestamp: 1700000000002, URL: "https://b.example.com", Title: "B", Dir: filepath.Join(root, snapshot.Format(1700000000002)), Outputs: []string{"output.html"}},
-		{Timestamp: 1700000000001, URL: "https://a.example.com", Title: "A", Dir: filepath.Join(root, snapshot.Format(1700000000001)), Outputs: []string{"output.html"}},
+		{Timestamp: 1700000000000002, URL: "https://b.example.com", Title: "B", Dir: filepath.Join(root, snapshot.Format(1700000000000002)), Outputs: []string{"output.html"}},
+		{Timestamp: 1700000000000001, URL: "https://a.example.com", Title: "A", Dir: filepath.Join(root, snapshot.Format(1700000000000001)), Outputs: []string{"output.html"}},
 	} {
 		if err := os.MkdirAll(data.Dir, 0o755); err != nil {
 			t.Fatalf("mkdir: %v", err)
@@ -203,10 +203,10 @@ func TestScan_collectsAndSortsSnapshots(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("len(entries) = %d, want 2", len(got))
 	}
-	if got[0].Timestamp != 1700000000001 || got[0].URL != "https://a.example.com" {
+	if got[0].Timestamp != 1700000000000001 || got[0].URL != "https://a.example.com" {
 		t.Errorf("entries[0] = %+v, want A", got[0])
 	}
-	if got[1].Timestamp != 1700000000002 || got[1].URL != "https://b.example.com" {
+	if got[1].Timestamp != 1700000000000002 || got[1].URL != "https://b.example.com" {
 		t.Errorf("entries[1] = %+v, want B", got[1])
 	}
 }
@@ -218,12 +218,12 @@ func TestScan_skipsDirsWithoutIndex(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "stray-no-index"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(root, snapshot.Format(1700000000000))
+	dir := filepath.Join(root, snapshot.Format(1700000000000000))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := WriteIndex(IndexData{
-		Timestamp: 1700000000000,
+		Timestamp: 1700000000000000,
 		URL:       "https://example.com",
 		Title:     "One",
 		Dir:       dir,

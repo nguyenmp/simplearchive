@@ -10,19 +10,19 @@ import (
 func TestFormat_roundTripsABShape(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		ms   int64
+		us   int64
 		want string
 	}{
-		{1728277530511, "1728277530.511000"},
+		{1728277530511056, "1728277530.511056"},
 		{0, "0.000000"},
-		{1000, "1.000000"},
-		{1001, "1.001000"},
-		{999, "0.999000"},
-		{1728277530000, "1728277530.000000"},
+		{1000000, "1.000000"},
+		{1001000, "1.001000"},
+		{999000, "0.999000"},
+		{1728277530000000, "1728277530.000000"},
 	}
 	for _, tc := range cases {
-		if got := Format(tc.ms); got != tc.want {
-			t.Errorf("Format(%d) = %q, want %q", tc.ms, got, tc.want)
+		if got := Format(tc.us); got != tc.want {
+			t.Errorf("Format(%d) = %q, want %q", tc.us, got, tc.want)
 		}
 	}
 }
@@ -30,9 +30,12 @@ func TestFormat_roundTripsABShape(t *testing.T) {
 func TestFormat_matchesABSampleShape(t *testing.T) {
 	t.Parallel()
 	// The real ArchiveBox sample dir was "1728277530.511056" (microsecond
-	// precision). Our ms-precision rendering must be a valid shape: seconds,
-	// a dot, then exactly six digits.
-	got := Format(1728277530511)
+	// precision). Our rendering must reproduce it exactly: seconds, a dot,
+	// then exactly six digits.
+	got := Format(1728277530511056)
+	if got != "1728277530.511056" {
+		t.Fatalf("Format = %q, want 1728277530.511056", got)
+	}
 	parts := strings.SplitN(got, ".", 2)
 	if len(parts) != 2 {
 		t.Fatalf("Format = %q, want a dot-separated value", got)
@@ -48,21 +51,21 @@ func TestFormat_matchesABSampleShape(t *testing.T) {
 func TestParse_roundTripsFormat(t *testing.T) {
 	t.Parallel()
 	cases := []int64{
-		1728277530511,
+		1728277530511056,
 		0,
-		1000,
-		1001,
-		999,
-		1728277530000,
-		1785453601944,
+		1000000,
+		1001000,
+		999000,
+		1728277530000000,
+		1785453601944000,
 	}
-	for _, ms := range cases {
-		got, err := Parse(Format(ms))
+	for _, us := range cases {
+		got, err := Parse(Format(us))
 		if err != nil {
-			t.Fatalf("Parse(%q): %v", Format(ms), err)
+			t.Fatalf("Parse(%q): %v", Format(us), err)
 		}
-		if got != ms {
-			t.Errorf("Parse(Format(%d)) = %d, want %d", ms, got, ms)
+		if got != us {
+			t.Errorf("Parse(Format(%d)) = %d, want %d", us, got, us)
 		}
 	}
 }
@@ -73,9 +76,9 @@ func TestParse_acceptsShortFraction(t *testing.T) {
 		s    string
 		want int64
 	}{
-		{"1.5", 1500},
-		{"1.0005", 1000}, // 1.000500 -> micros 500 -> /1000 = 0 (ms precision)
-		{"0.1", 100},
+		{"1.5", 1500000},
+		{"1.0005", 1000500},
+		{"0.1", 100000},
 	}
 	for _, tc := range cases {
 		got, err := Parse(tc.s)
@@ -98,11 +101,11 @@ func TestParse_rejectsMalformed(t *testing.T) {
 	}
 }
 
-func TestNewTimestamp_isEpochMs(t *testing.T) {
+func TestNewTimestamp_isEpochMicros(t *testing.T) {
 	t.Parallel()
-	now := time.Now().UnixMilli()
+	now := time.Now().UnixMicro()
 	got := NewTimestamp()
-	if got < now-1 || got > now+2000 {
+	if got < now-1 || got > now+2000000 {
 		t.Fatalf("NewTimestamp = %d, want near %d", got, now)
 	}
 }

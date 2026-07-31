@@ -18,7 +18,7 @@ const IndexFile = "index.json"
 
 // IndexData describes a snapshot to write to index.json.
 type IndexData struct {
-	Timestamp int64 // epoch ms
+	Timestamp int64 // epoch microseconds
 	URL       string
 	Title     string // may be empty
 	Dir       string // snapshot directory (for pwd in history entries)
@@ -29,7 +29,7 @@ type IndexData struct {
 // into meta.db. Title is the empty string when the index's "title" field is
 // null or absent.
 type IndexEntry struct {
-	Timestamp  int64 // epoch ms
+	Timestamp  int64 // epoch microseconds
 	URL        string
 	Title      string
 	IsArchived bool
@@ -180,7 +180,7 @@ func baseURL(u *url.URL) string {
 
 // ReadIndex decodes a single snapshot's index.json into an IndexEntry. The
 // timestamp is parsed from ArchiveBox's "seconds.microseconds" string form
-// into epoch milliseconds. A null or absent title becomes the empty string.
+// into epoch microseconds. A null or absent title becomes the empty string.
 func ReadIndex(path string) (IndexEntry, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

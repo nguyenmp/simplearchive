@@ -12,7 +12,7 @@ import (
 // CreateSnapshot inserts a new snapshot row in the "pending" state and returns
 // the timestamp it was stored under.
 func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, error) {
-	now := time.Now().UnixMilli()
+	now := time.Now().UnixMicro()
 	_, err := d.ExecContext(ctx, `
 		INSERT INTO snapshots
 		    (timestamp, url, title, status, is_archived, created_at, updated_at)
@@ -77,7 +77,7 @@ func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
 // UpdateSnapshot marks a snapshot as successfully archived, recording its title.
 // A null title is stored when title is the empty string.
 func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
-	now := time.Now().UnixMilli()
+	now := time.Now().UnixMicro()
 	var titleArg any
 	if title != "" {
 		titleArg = title

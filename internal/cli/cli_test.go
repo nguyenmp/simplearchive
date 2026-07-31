@@ -149,8 +149,8 @@ func TestRun_import_loadsSnapshotsIntoDB(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "archive")
 	// Two snapshots written out of order; import must load both.
 	for _, data := range []archive.IndexData{
-		{Timestamp: 1700000000002, URL: "https://b.example.com", Title: "B", Outputs: []string{"output.html"}},
-		{Timestamp: 1700000000001, URL: "https://a.example.com", Title: "A", Outputs: []string{"output.html"}},
+		{Timestamp: 1700000000000002, URL: "https://b.example.com", Title: "B", Outputs: []string{"output.html"}},
+		{Timestamp: 1700000000000001, URL: "https://a.example.com", Title: "A", Outputs: []string{"output.html"}},
 	} {
 		dir := filepath.Join(root, snapshot.Format(data.Timestamp))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -180,10 +180,10 @@ func TestRun_import_loadsSnapshotsIntoDB(t *testing.T) {
 		t.Fatalf("snapshot count = %d, want 2", n)
 	}
 	var urlA, urlB string
-	if err := db.QueryRow("SELECT url FROM snapshots WHERE timestamp = ?", 1700000000001).Scan(&urlA); err != nil {
+	if err := db.QueryRow("SELECT url FROM snapshots WHERE timestamp = ?", 1700000000000001).Scan(&urlA); err != nil {
 		t.Fatalf("query A: %v", err)
 	}
-	if err := db.QueryRow("SELECT url FROM snapshots WHERE timestamp = ?", 1700000000002).Scan(&urlB); err != nil {
+	if err := db.QueryRow("SELECT url FROM snapshots WHERE timestamp = ?", 1700000000000002).Scan(&urlB); err != nil {
 		t.Fatalf("query B: %v", err)
 	}
 	if urlA != "https://a.example.com" || urlB != "https://b.example.com" {
@@ -200,12 +200,12 @@ func TestRun_import_isIdempotent(t *testing.T) {
 	defer db.Close()
 
 	root := filepath.Join(t.TempDir(), "archive")
-	dir := filepath.Join(root, snapshot.Format(1700000000000))
+	dir := filepath.Join(root, snapshot.Format(1700000000000000))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	if err := archive.WriteIndex(archive.IndexData{
-		Timestamp: 1700000000000,
+		Timestamp: 1700000000000000,
 		URL:       "https://example.com",
 		Title:     "Example",
 		Dir:       dir,
