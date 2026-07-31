@@ -66,9 +66,10 @@ $ archivebox init
 
 ## Environment Variables
 
-| Variable     | Default | Description                                                                                          |
-| ------------ | ------- | ---------------------------------------------------------------------------------------------------- |
-| `LOG_LEVEL`  | `info`  | Structured log level for the JSON slog handler. One of `debug`, `info`, `warn`, `warning`, `error`. |
+| Variable     | Default          | Description                                                                                          |
+| ------------ | ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `LOG_LEVEL`  | `info`           | Structured log level for the JSON slog handler. One of `debug`, `info`, `warn`, `warning`, `error`. |
+| `SERVE_ADDR`  | `127.0.0.1:8080` | Listen address for `simplearchive serve`. |
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 
@@ -92,9 +93,9 @@ M1 — Sync ingest (CLI)
 
 M2 — Read + serve + web add
 - [x] Import 706 existing snapshots into meta.db (scan archive/*/index.json).
-- [ ] simplearchive serve: HTTP server (chi). SQLite WAL + short transactions.
-- [ ] HTMX list/detail views, tailwind. Add-URL form. Static file server (path-scoped + CSP sandbox + nosniff).
-- [ ] Local-run only.
+- [x] simplearchive serve: HTTP server (chi). SQLite WAL + short transactions.
+- [x] HTMX list/detail views, tailwind. Add-URL form. Static file server (path-scoped + CSP sandbox + nosniff).
+- [x] Local-run only.
 
 M3 — Richer extractors
 - [ ] chromedp (child process, network-restricted), obelisk, yt-dlp.
