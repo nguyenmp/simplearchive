@@ -73,6 +73,16 @@ $ archivebox init
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 
+## Serving online
+
+`SERVE_ADDR` defaults to `127.0.0.1:8080`, which only listens on localhost — fine for local dev but not reachable from outside the host. To serve the dev container on the network (e.g. on a VPS, or to test from another machine on your LAN), bind all interfaces and publish the port:
+
+```
+docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run .
+```
+
+Then visit `http://<host-ip>:8080`. This exposes the server with no auth — only use on a trusted network or behind a reverse proxy (see M4).
+
 ## Tailwind CSS
 
 The server embeds a compiled `tailwind.css` (committed under `internal/server/assets/static/`). When you add or change utility classes in a template, regenerate it inside the dev container:
