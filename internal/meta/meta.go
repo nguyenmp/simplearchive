@@ -15,6 +15,8 @@ const (
 	driverName    = "sqlite"
 	maxOpenConns  = 1
 	busyTimeoutMs = 5000
+	// maxLimit caps the page size returned by ListSnapshots.
+	maxLimit = 500
 )
 
 //go:embed schema_v1_create_snapshots_table.sql
