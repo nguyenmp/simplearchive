@@ -1,0 +1,43 @@
+{{define "title"}}{{if .Snapshot.Title}}{{.Snapshot.Title}}{{else}}snapshot{{end}} — simplearchive{{end}}
+{{define "content"}}
+<section>
+	<a href="/" class="text-sm text-blue-600 hover:underline">← back to list</a>
+
+	<h1 class="text-2xl font-bold mt-2">
+		{{if .Snapshot.Title}}{{.Snapshot.Title}}{{else}}<span class="text-gray-400">untitled</span>{{end}}
+	</h1>
+
+	<dl class="mt-4 text-sm space-y-1">
+		<div><dt class="inline font-semibold">URL:</dt>
+			<dd class="inline ml-2"><a href="{{.Snapshot.URL}}" class="text-blue-600 hover:underline break-all">{{.Snapshot.URL}}</a></dd>
+		</div>
+		<div><dt class="inline font-semibold">Status:</dt>
+			<dd class="inline ml-2">{{.Snapshot.Status}}</dd>
+		</div>
+		<div><dt class="inline font-semibold">Archived:</dt>
+			<dd class="inline ml-2">{{if .Snapshot.IsArchived}}yes{{else}}no{{end}}</dd>
+		</div>
+		<div><dt class="inline font-semibold">Created:</dt>
+			<dd class="inline ml-2">{{formatTimestamp .Snapshot.CreatedAt}}</dd>
+		</div>
+		<div><dt class="inline font-semibold">Updated:</dt>
+			<dd class="inline ml-2">{{formatTimestamp .Snapshot.UpdatedAt}}</dd>
+		</div>
+	</dl>
+
+	{{if .Files}}
+	<section class="mt-6">
+		<h2 class="text-lg font-semibold mb-2">Archived files</h2>
+		<ul class="text-sm space-y-1">
+		{{range .Files}}
+			<li>
+				<a href="{{.Path}}" class="text-blue-600 hover:underline font-mono">{{.Name}}</a>
+			</li>
+		{{end}}
+		</ul>
+	</section>
+	{{else}}
+		<p class="mt-6 text-sm text-gray-500">No archived files found on disk.</p>
+	{{end}}
+</section>
+{{end}}

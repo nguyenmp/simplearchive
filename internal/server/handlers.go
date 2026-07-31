@@ -1,10 +1,14 @@
 package server
 
 import (
+	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
@@ -57,6 +61,69 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.render.render(w, "list", data); err != nil {
 		s.Logger.Error("list: render", "err", err)
+	}
+}
+
+// detailData is the view model for the detail page.
+type detailData struct {
+	Snapshot meta.Snapshot
+	Files    []fileLink
+}
+
+// fileLink is a single archived output file linkable from the detail page.
+type fileLink struct {
+	Name string
+	Path string // URL path under /archive/{timestamp}/
+}
+
+// handleDetail renders GET /{timestamp}: a single snapshot's metadata plus
+// links to its archived output files. The {timestamp} URL param is the
+// ArchiveBox "seconds.microseconds" directory name.
+func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
+	tsStr := chi.URLParam(r, "timestamp")
+	ts, err := snapshot.Parse(tsStr)
+	if err != nil {
+		s.renderNotFound(w)
+		return
+	}
+
+	snap, err := s.DB.GetSnapshot(r.Context(), ts)
+	if err != nil {
+		if errors.Is(err, meta.ErrNotFound) {
+			s.renderNotFound(w)
+			return
+		}
+		s.Logger.Error("detail: query", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	data := detailData{Snapshot: snap}
+	dir := archive.SnapshotDir(s.ArchiveRoot, ts)
+	if entries, derr := os.ReadDir(dir); derr == nil {
+		formatted := snapshot.Format(ts)
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			data.Files = append(data.Files, fileLink{
+				Name: name,
+				Path: "/archive/" + formatted + "/" + name,
+			})
+		}
+	}
+
+	if err := s.render.render(w, "detail", data); err != nil {
+		s.Logger.Error("detail: render", "err", err)
+	}
+}
+
+// renderNotFound renders the 404 page with the correct status code.
+func (s *Server) renderNotFound(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNotFound)
+	if err := s.render.render(w, "notfound", nil); err != nil {
+		s.Logger.Error("notfound: render", "err", err)
 	}
 }
 

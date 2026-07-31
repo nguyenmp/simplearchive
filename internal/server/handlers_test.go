@@ -4,11 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/meta"
+	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
 // seedSnapshots inserts n succeeded snapshots into db for view tests.
@@ -91,5 +95,78 @@ func TestHandleList_pagination(t *testing.T) {
 	// Prev should be present but disabled (gray-300).
 	if !strings.Contains(body, "text-gray-300") {
 		t.Errorf("body missing disabled prev: %q", body)
+	}
+}
+
+func TestHandleDetail_found(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	seedSnapshots(t, db, 1)
+	const ts int64 = 1700000000000000
+
+	// Create a snapshot dir with one output file so the file list is populated.
+	root := filepath.Join(t.TempDir(), "archive")
+	dir := archive.SnapshotDir(root, ts)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Title 0") {
+		t.Errorf("body missing title: %q", body)
+	}
+	if !strings.Contains(body, "https://example.com/0") {
+		t.Errorf("body missing url: %q", body)
+	}
+	if !strings.Contains(body, "output.html") {
+		t.Errorf("body missing file link: %q", body)
+	}
+	// File link points at the static archive route.
+	if !strings.Contains(body, "/archive/"+snapshot.Format(ts)+"/output.html") {
+		t.Errorf("body missing archive file path: %q", body)
+	}
+}
+
+func TestHandleDetail_notFound(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/1700000000.000099", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+	if !strings.Contains(rec.Body.String(), "Not found") {
+		t.Errorf("body missing not-found message: %q", rec.Body.String())
+	}
+}
+
+func TestHandleDetail_invalidTimestamp(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/not-a-timestamp", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d (invalid timestamp -> 404)", rec.Code, http.StatusNotFound)
 	}
 }

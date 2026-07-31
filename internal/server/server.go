@@ -57,6 +57,7 @@ func (s *Server) Router() http.Handler {
 	r.Get("/healthz", s.handleHealthz)
 	r.Handle("/static/*", staticHandler())
 	r.Get("/", s.handleList)
+	r.Get("/{timestamp}", s.handleDetail)
 	return r
 }
 
