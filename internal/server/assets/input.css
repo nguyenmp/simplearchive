@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* Scan server templates for class names so only used utilities are emitted. */
+@source "../templates";

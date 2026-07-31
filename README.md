@@ -72,6 +72,14 @@ $ archivebox init
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 
+## Tailwind CSS
+
+The server embeds a compiled `tailwind.css` (committed under `internal/server/assets/static/`). When you add or change utility classes in a template, regenerate it inside the dev container:
+
+```
+docker run --rm -v "$PWD:/app" -w /app simplearchive-dev make css
+```
+
 ## Milestones
 
 M1 — Sync ingest (CLI)

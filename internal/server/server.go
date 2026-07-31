@@ -51,6 +51,7 @@ func (s *Server) Router() http.Handler {
 
 	r := chi.NewRouter()
 	r.Get("/healthz", s.handleHealthz)
+	r.Handle("/static/*", staticHandler())
 	return r
 }
 

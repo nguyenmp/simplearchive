@@ -41,6 +41,43 @@ func TestHandleHealthz(t *testing.T) {
 	}
 }
 
+func TestServeStatic_tailwindCSS(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/static/tailwind.css", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Body.Len(); got == 0 {
+		t.Fatal("tailwind.css body is empty")
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/css; charset=utf-8" {
+		t.Errorf("content-type = %q, want text/css", ct)
+	}
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("nosniff = %q, want nosniff", got)
+	}
+}
+
+func TestServeStatic_missingFile(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/static/does-not-exist.css", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
 func TestRun_noDB_returnsError(t *testing.T) {
 	t.Parallel()
 	s := &Server{}
