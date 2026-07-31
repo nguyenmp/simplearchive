@@ -170,3 +170,79 @@ func TestHandleDetail_invalidTimestamp(t *testing.T) {
 		t.Fatalf("status = %d, want %d (invalid timestamp -> 404)", rec.Code, http.StatusNotFound)
 	}
 }
+
+func TestHandleAddForm_renders(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/add", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !strings.Contains(rec.Body.String(), "Add a URL") {
+		t.Errorf("body missing form heading: %q", rec.Body.String())
+	}
+}
+
+func TestHandleAddSubmit_missingURL(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	form := "url="
+	req := httptest.NewRequest(http.MethodPost, "/add", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
+	}
+	if !strings.Contains(rec.Body.String(), "URL is required") {
+		t.Errorf("body missing error: %q", rec.Body.String())
+	}
+}
+
+func TestHandleAddSubmit_success(t *testing.T) {
+	t.Parallel()
+	const body = "<html><head><title>Example</title></head></html>"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer upstream.Close()
+
+	db := newTestDB(t)
+	s := &Server{DB: db, ArchiveRoot: filepath.Join(t.TempDir(), "archive")}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	form := "url=" + upstream.URL
+	req := httptest.NewRequest(http.MethodPost, "/add", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusSeeOther, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	if loc == "" || !strings.HasPrefix(loc, "/") {
+		t.Fatalf("Location = %q, want a snapshot path", loc)
+	}
+	// The redirect target should be a valid ArchiveBox timestamp path.
+	if !strings.Contains(loc, ".") {
+		t.Errorf("Location %q does not look like a timestamp path", loc)
+	}
+
+	// The snapshot was persisted to the DB.
+	var n int
+	if err := db.QueryRow("SELECT count(*) FROM snapshots WHERE url = ?", upstream.URL).Scan(&n); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("snapshot count = %d, want 1", n)
+	}
+}

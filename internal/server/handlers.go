@@ -9,9 +9,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nguyenmp/simplearchive/internal/archive"
+	"github.com/nguyenmp/simplearchive/internal/ingest"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
+
+// addData is the view model for the Add-URL form.
+type addData struct {
+	URL   string
+	Error string
+}
 
 const defaultPageSize = 50
 
@@ -124,6 +131,40 @@ func (s *Server) renderNotFound(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNotFound)
 	if err := s.render.render(w, "notfound", nil); err != nil {
 		s.Logger.Error("notfound: render", "err", err)
+	}
+}
+
+// handleAddForm renders GET /add: the Add-URL form.
+func (s *Server) handleAddForm(w http.ResponseWriter, r *http.Request) {
+	if err := s.render.render(w, "add", addData{}); err != nil {
+		s.Logger.Error("add: render", "err", err)
+	}
+}
+
+// handleAddSubmit handles POST /add: it archives the URL synchronously (inline
+// wget pipeline) and redirects to the new snapshot's detail page. On error the
+// form is re-rendered with the error message.
+func (s *Server) handleAddSubmit(w http.ResponseWriter, r *http.Request) {
+	url := r.FormValue("url")
+	if url == "" {
+		s.renderAddError(w, url, "URL is required")
+		return
+	}
+
+	res, err := ingest.Add(r.Context(), s.DB, s.ArchiveRoot, url)
+	if err != nil {
+		s.Logger.Error("add: ingest", "url", url, "err", err)
+		s.renderAddError(w, url, "failed to archive: "+err.Error())
+		return
+	}
+
+	http.Redirect(w, r, snapshotPath(res.Timestamp), http.StatusSeeOther)
+}
+
+func (s *Server) renderAddError(w http.ResponseWriter, url, msg string) {
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	if err := s.render.render(w, "add", addData{URL: url, Error: msg}); err != nil {
+		s.Logger.Error("add: render error", "err", err)
 	}
 }
 

@@ -2,8 +2,11 @@
 {{define "content"}}
 <section id="snapshot-list">
 	<header class="flex items-center justify-between mb-4">
-		<h1 class="text-2xl font-bold">Snapshots</h1>
-		<span class="text-sm text-gray-500">{{.Total}} total</span>
+		<div class="flex items-baseline gap-3">
+			<h1 class="text-2xl font-bold">Snapshots</h1>
+			<span class="text-sm text-gray-500">{{.Total}} total</span>
+		</div>
+		<a href="/add" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Add URL</a>
 	</header>
 
 	{{if not .Snapshots}}

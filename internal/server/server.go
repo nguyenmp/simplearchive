@@ -57,6 +57,8 @@ func (s *Server) Router() http.Handler {
 	r.Get("/healthz", s.handleHealthz)
 	r.Handle("/static/*", staticHandler())
 	r.Get("/", s.handleList)
+	r.Get("/add", s.handleAddForm)
+	r.Post("/add", s.handleAddSubmit)
 	r.Get("/{timestamp}", s.handleDetail)
 	r.Get("/archive/{timestamp}/*", s.handleArchiveFile)
 	return r
