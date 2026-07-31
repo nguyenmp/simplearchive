@@ -1,0 +1,58 @@
+{{define "title"}}simplearchive{{end}}
+{{define "content"}}
+<section id="snapshot-list">
+	<header class="flex items-center justify-between mb-4">
+		<h1 class="text-2xl font-bold">Snapshots</h1>
+		<span class="text-sm text-gray-500">{{.Total}} total</span>
+	</header>
+
+	{{if not .Snapshots}}
+		<p class="text-gray-500">No snapshots yet.</p>
+	{{else}}
+	<table class="w-full text-sm">
+		<thead>
+			<tr class="text-left text-gray-500 border-b">
+				<th class="py-2 pr-4">Timestamp</th>
+				<th class="py-2 pr-4">Title</th>
+				<th class="py-2 pr-4">URL</th>
+				<th class="py-2">Status</th>
+			</tr>
+		</thead>
+		<tbody>
+		{{range .Snapshots}}
+			<tr class="border-b hover:bg-gray-100">
+				<td class="py-2 pr-4 font-mono text-xs">
+					<a href="{{snapshotPath .Timestamp}}" class="text-blue-600 hover:underline">{{formatTimestamp .Timestamp}}</a>
+				</td>
+				<td class="py-2 pr-4">{{if .Title}}{{.Title}}{{else}}<span class="text-gray-400">untitled</span>{{end}}</td>
+				<td class="py-2 pr-4 truncate max-w-xs text-gray-600">{{.URL}}</td>
+				<td class="py-2">{{.Status}}</td>
+			</tr>
+		{{end}}
+		</tbody>
+	</table>
+	{{end}}
+
+	{{if or .HasPrev .HasNext}}
+	<nav class="flex items-center justify-between mt-4 text-sm">
+		<div>
+		{{if .HasPrev}}
+		<a href="/?offset={{.PrevOffset}}"
+		   class="text-blue-600 hover:underline">← Prev</a>
+		{{else}}
+			<span class="text-gray-300">← Prev</span>
+		{{end}}
+		</div>
+		<span class="text-gray-500">page {{.Page}} of {{.Pages}}</span>
+		<div>
+		{{if .HasNext}}
+		<a href="/?offset={{.NextOffset}}"
+		   class="text-blue-600 hover:underline">Next →</a>
+		{{else}}
+			<span class="text-gray-300">Next →</span>
+		{{end}}
+		</div>
+	</nav>
+	{{end}}
+</section>
+{{end}}

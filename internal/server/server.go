@@ -33,6 +33,7 @@ type Server struct {
 	DB          *meta.DB
 	ArchiveRoot string
 	Addr        string
+	render      *renderer
 	// Listener, when non-nil, is used instead of opening Addr. Tests inject a
 	// net.Listener so they can dial the server without racing on a port.
 	Listener net.Listener
@@ -48,10 +49,14 @@ func (s *Server) Router() http.Handler {
 	if s.ArchiveRoot == "" {
 		s.ArchiveRoot = "archive"
 	}
+	if s.render == nil {
+		s.render = newRenderer()
+	}
 
 	r := chi.NewRouter()
 	r.Get("/healthz", s.handleHealthz)
 	r.Handle("/static/*", staticHandler())
+	r.Get("/", s.handleList)
 	return r
 }
 
