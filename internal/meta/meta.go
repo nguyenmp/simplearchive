@@ -25,9 +25,13 @@ var schemaV1 string
 //go:embed schema_v2_create_extractor_runs_table.sql
 var schemaV2 string
 
+//go:embed schema_v3_snapshots_surrogate_id.sql
+var schemaV3 string
+
 var migrations = map[int]string{
 	1: schemaV1,
 	2: schemaV2,
+	3: schemaV3,
 }
 
 func dsn(path string) string {
@@ -80,10 +84,29 @@ func (d *DB) migrate(ctx context.Context) error {
 	}
 	sort.Ints(versions)
 
+	pending := make([]int, 0, len(versions))
 	for _, v := range versions {
-		if v <= current {
-			continue
+		if v > current {
+			pending = append(pending, v)
 		}
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+
+	// Migrations may rebuild a parent table of an existing foreign key (v3
+	// rebuilds snapshots, the parent of extractor_runs.timestamp). SQLite blocks
+	// dropping a parent table while FK enforcement is on, so disable it for the
+	// migration run and re-enable + verify afterwards. Each migration's data
+	// copy preserves referential integrity by construction.
+	if _, err := d.ExecContext(ctx, "PRAGMA foreign_keys=off"); err != nil {
+		return fmt.Errorf("migrate: disable foreign_keys: %w", err)
+	}
+	defer func() {
+		_, _ = d.ExecContext(ctx, "PRAGMA foreign_keys=on")
+	}()
+
+	for _, v := range pending {
 		script := migrations[v]
 		tx, err := d.BeginTx(ctx, nil)
 		if err != nil {
@@ -100,6 +123,26 @@ func (d *DB) migrate(ctx context.Context) error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration %d: %w", v, err)
 		}
+	}
+
+	// PRAGMA foreign_key_check reports orphaned child rows regardless of the
+	// foreign_keys enforcement flag, so it works here even though we re-enable
+	// enforcement via the deferred call. Fail loudly rather than leave dangling
+	// references from a buggy migration.
+	rows, err := d.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return fmt.Errorf("migrate: foreign_key_check: %w", err)
+	}
+	violations := 0
+	for rows.Next() {
+		violations++
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("migrate: foreign_key_check rows: %w", err)
+	}
+	if violations > 0 {
+		return fmt.Errorf("migrate: foreign_key_check reported %d FK violation(s)", violations)
 	}
 	return nil
 }

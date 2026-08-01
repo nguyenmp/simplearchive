@@ -8,8 +8,10 @@ import (
 )
 
 // Snapshot is the in-memory representation of a snapshots row. Title is the
-// empty string when the column is NULL.
+// empty string when the column is NULL. ID is the surrogate primary key used
+// by foreign keys; Timestamp is the ArchiveBox directory name / route key.
 type Snapshot struct {
+	ID         int64
 	Timestamp  int64
 	URL        string
 	Title      string
@@ -40,7 +42,7 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 	}
 
 	rows, err := d.QueryContext(ctx, `
-		SELECT timestamp, url, COALESCE(title, ''), status, is_archived, created_at, updated_at
+		SELECT id, timestamp, url, COALESCE(title, ''), status, is_archived, created_at, updated_at
 		FROM snapshots
 		ORDER BY timestamp DESC
 		LIMIT ? OFFSET ?`, limit, offset)
@@ -53,7 +55,7 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 	for rows.Next() {
 		var s Snapshot
 		var isArchived int
-		if err := rows.Scan(&s.Timestamp, &s.URL, &s.Title, &s.Status, &isArchived, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.Status, &isArchived, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("meta.ListSnapshots: scan: %w", err)
 		}
 		s.IsArchived = isArchived != 0
@@ -71,10 +73,10 @@ func (d *DB) GetSnapshot(ctx context.Context, ts int64) (Snapshot, error) {
 	var s Snapshot
 	var isArchived int
 	err := d.QueryRowContext(ctx, `
-		SELECT timestamp, url, COALESCE(title, ''), status, is_archived, created_at, updated_at
+		SELECT id, timestamp, url, COALESCE(title, ''), status, is_archived, created_at, updated_at
 		FROM snapshots
 		WHERE timestamp = ?`, ts).Scan(
-		&s.Timestamp, &s.URL, &s.Title, &s.Status, &isArchived, &s.CreatedAt, &s.UpdatedAt)
+		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.Status, &isArchived, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Snapshot{}, ErrNotFound
