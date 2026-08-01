@@ -114,15 +114,24 @@ func TestHandleDetail_found(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	// Seed an extractor run so the per-extractor status table is populated.
-	if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
-		Timestamp:  ts,
-		Extractor:  "dom",
+	snap, err := db.GetSnapshot(context.Background(), ts)
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	runID, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+		SnapshotID: snap.ID,
+		Extractor:  "wget",
 		Status:     "succeeded",
-		Output:     "output.html",
 		StartedAt:  ts,
 		FinishedAt: ts + 1000,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("InsertRun: %v", err)
+	}
+	if _, err := db.InsertStepOutput(context.Background(), runID, meta.StepOutput{
+		RunID: runID, Name: "dom", Filename: "output.html", Status: "succeeded", StartTs: ts, EndTs: ts + 1000,
+	}); err != nil {
+		t.Fatalf("InsertStepOutput: %v", err)
 	}
 
 	s := &Server{DB: db, ArchiveRoot: root}
@@ -149,12 +158,15 @@ func TestHandleDetail_found(t *testing.T) {
 	if !strings.Contains(body, "/archive/"+snapshot.Format(ts)+"/output.html") {
 		t.Errorf("body missing archive file path: %q", body)
 	}
-	// Per-extractor status table is rendered.
+	// Per-extractor status table is rendered: the wget run and its dom output.
 	if !strings.Contains(body, "Extractors") {
 		t.Errorf("body missing extractors heading: %q", body)
 	}
-	if !strings.Contains(body, ">dom<") || !strings.Contains(body, "succeeded") {
-		t.Errorf("body missing dom/succeeded run row: %q", body)
+	if !strings.Contains(body, "wget") {
+		t.Errorf("body missing wget extractor row: %q", body)
+	}
+	if !strings.Contains(body, "dom") || !strings.Contains(body, "succeeded") {
+		t.Errorf("body missing dom output / succeeded status: %q", body)
 	}
 }
 

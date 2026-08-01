@@ -10,10 +10,12 @@ import (
 )
 
 // CreateSnapshot inserts a new snapshot row in the "pending" state and returns
-// the timestamp it was stored under.
+// the new snapshot's surrogate id. The caller already holds the timestamp it
+// passed in (the ArchiveBox directory name); the id is the foreign key target
+// used by extractor_runs.
 func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, error) {
 	now := time.Now().UnixMicro()
-	_, err := d.ExecContext(ctx, `
+	res, err := d.ExecContext(ctx, `
 		INSERT INTO snapshots
 		    (timestamp, url, title, status, is_archived, created_at, updated_at)
 		VALUES (?, ?, NULL, 'pending', 0, ?, ?)`,
@@ -21,7 +23,11 @@ func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, e
 	if err != nil {
 		return 0, fmt.Errorf("meta.CreateSnapshot: insert: %w", err)
 	}
-	return ts, nil
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("meta.CreateSnapshot: last insert id: %w", err)
+	}
+	return id, nil
 }
 
 // execer is satisfied by both *sql.DB and *sql.Tx, letting the upsert SQL run

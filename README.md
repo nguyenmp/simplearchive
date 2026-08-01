@@ -189,9 +189,10 @@ M3 — Richer extractors
 - [x] Revisit worker-isolation topology here. Network restriction for chromedp deferred to container-level isolation (see [Production deployment](#production-deployment)).
 
 M3.5 — Worker split (deferred until inline archiving is too slow)
-- [ ] Add queue_jobs + job_steps tables.
-- [ ] add enqueues, returns timestamp (CLI prints id/status).
-- [ ] simplearchive worker drains queue (single goroutine, recover() per job).
+- [x] snapshots surrogate id PK (timestamp demoted to unique).
+- [x] Reshape extractor_runs to per-extractor + step_outputs (snapshot_id FK).
+- [ ] Drop snapshots.status + is_archived (derive from per-step state).
+- [ ] add enqueues pending extractor_runs; worker claims a snapshot and runs its steps independently, rebuilding index.json per step.
 - [ ] simplearchive add --wait blocks + streams step logs (preserves sync UX).
 
 M4 — Production
@@ -208,6 +209,7 @@ M6 - Search
 - [ ] Semantic search across the same
 
 Deferred
+- [ ] Derive snapshot status/is_archived from per-step state (latest attempt per extractor).
 - [ ] Re-run extractors on existing snapshots.
 - [ ] URL validation + response-size cap + timeouts.
 

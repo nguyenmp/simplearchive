@@ -15,18 +15,18 @@ func TestCreateSnapshot_insertsPendingRow(t *testing.T) {
 	}
 	defer db.Close()
 
-	ts, err := db.CreateSnapshot(context.Background(), "https://example.com", 1700000000000000)
+	id, err := db.CreateSnapshot(context.Background(), "https://example.com", 1700000000000000)
 	if err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
-	if ts != 1700000000000000 {
-		t.Fatalf("ts = %d, want 1700000000000000", ts)
+	if id == 0 {
+		t.Fatal("CreateSnapshot returned id 0")
 	}
 
 	var url, status string
 	var isArchived int
 	err = db.QueryRowContext(context.Background(),
-		"SELECT url, status, is_archived FROM snapshots WHERE timestamp = ?", ts,
+		"SELECT url, status, is_archived FROM snapshots WHERE timestamp = ?", 1700000000000000,
 	).Scan(&url, &status, &isArchived)
 	if err != nil {
 		t.Fatalf("query inserted row: %v", err)

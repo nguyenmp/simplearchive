@@ -71,14 +71,17 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 3 {
-		t.Fatalf("user_version = %d, want 3", got)
+	if got := userVersion(t, db); got != 4 {
+		t.Fatalf("user_version = %d, want 4", got)
 	}
 	if _, err := db.Exec("SELECT 1 FROM snapshots LIMIT 1"); err != nil {
 		t.Fatalf("snapshots table not queryable after fresh open: %v", err)
 	}
 	if _, err := db.Exec("SELECT 1 FROM extractor_runs LIMIT 1"); err != nil {
 		t.Fatalf("extractor_runs table not queryable after fresh open: %v", err)
+	}
+	if _, err := db.Exec("SELECT 1 FROM step_outputs LIMIT 1"); err != nil {
+		t.Fatalf("step_outputs table not queryable after fresh open: %v", err)
 	}
 	// v3 added a surrogate id primary key to snapshots.
 	var id int64
@@ -97,31 +100,25 @@ func TestMigrate_idempotent(t *testing.T) {
 	if _, err := Open(context.Background(), path); err != nil {
 		t.Fatalf("first Open: %v", err)
 	}
-	// Reopen must be a no-op: user_version stays at 2, no CREATE error.
+	// Reopen must be a no-op: user_version stays at the latest, no CREATE error.
 	db, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("second Open: %v", err)
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 3 {
-		t.Fatalf("user_version after reopen = %d, want 3", got)
+	if got := userVersion(t, db); got != 4 {
+		t.Fatalf("user_version after reopen = %d, want 4", got)
 	}
 }
 
-// TestMigrate_v3RebuildsSnapshotsWithSurrogateId seeds a v2 database (snapshots
-// with timestamp as PRIMARY KEY plus an extractor_runs row referencing it),
-// then opens via meta.Open so v3 rebuilds snapshots with a surrogate id PK. It
-// verifies the row is preserved with a non-zero id, its timestamp intact, and
-// no foreign-key violations remain.
-func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "meta.db")
+// seedV2DB builds a v2 database at path with one snapshot (timestamp ts) and
+// one per-output extractor_runs row (extractor=outName, e.g. "dom") referencing
+// it, then pins user_version at 2. It is the shared fixture for the v2->latest
+// migration tests.
+func seedV2DB(t *testing.T, path string, ts int64, outName string) {
+	t.Helper()
 	ctx := context.Background()
-
-	// Build a v2 database by hand: apply v1 + v2, seed a snapshot and a child
-	// extractor_runs row, then pin user_version at 2.
 	raw, err := sql.Open(driverName, dsn(path))
 	if err != nil {
 		t.Fatalf("raw open: %v", err)
@@ -132,15 +129,14 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	if _, err := raw.ExecContext(ctx, schemaV2); err != nil {
 		t.Fatalf("apply v2: %v", err)
 	}
-	const ts int64 = 1700000000000000
 	if _, err := raw.ExecContext(ctx, `
 		INSERT INTO snapshots (timestamp, url, status, is_archived, created_at, updated_at)
 		VALUES (?, 'https://example.com', 'succeeded', 1, 1, 1)`, ts); err != nil {
 		t.Fatalf("seed snapshot: %v", err)
 	}
 	if _, err := raw.ExecContext(ctx, `
-		INSERT INTO extractor_runs (timestamp, extractor, status, started_at, finished_at)
-		VALUES (?, 'dom', 'succeeded', 1, 2)`, ts); err != nil {
+		INSERT INTO extractor_runs (timestamp, extractor, status, output, started_at, finished_at)
+		VALUES (?, ?, 'succeeded', 'output.html', 1, 2)`, ts, outName); err != nil {
 		t.Fatalf("seed extractor_run: %v", err)
 	}
 	if _, err := raw.ExecContext(ctx, "PRAGMA user_version = 2"); err != nil {
@@ -149,16 +145,44 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	if err := raw.Close(); err != nil {
 		t.Fatalf("raw close: %v", err)
 	}
+}
 
-	// Open via meta.Open: migrates v2 -> v3 (rebuild snapshots with id PK).
+func assertNoFKViolations(t *testing.T, db *DB) {
+	t.Helper()
+	rows, err := db.QueryContext(context.Background(), "PRAGMA foreign_key_check")
+	if err != nil {
+		t.Fatalf("foreign_key_check: %v", err)
+	}
+	violations := 0
+	for rows.Next() {
+		violations++
+	}
+	rows.Close()
+	if violations > 0 {
+		t.Errorf("foreign_key_check reported %d violation(s), want 0", violations)
+	}
+}
+
+// TestMigrate_v3RebuildsSnapshotsWithSurrogateId seeds a v2 database and opens
+// via meta.Open so v3 rebuilds snapshots with a surrogate id PK. It verifies
+// the row is preserved with a non-zero id and its timestamp intact. (Opening
+// also applies v4, but this test is scoped to the v3 snapshots concern.)
+func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "meta.db")
+	ctx := context.Background()
+	const ts int64 = 1700000000000000
+	seedV2DB(t, path, ts, "dom")
+
 	db, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 3 {
-		t.Fatalf("user_version = %d, want 3", got)
+	if got := userVersion(t, db); got != 4 {
+		t.Fatalf("user_version = %d, want 4", got)
 	}
 
 	var id int64
@@ -173,28 +197,65 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	if gotTS != ts {
 		t.Errorf("timestamp = %d, want %d", gotTS, ts)
 	}
+	assertNoFKViolations(t, db)
+}
 
-	// The extractor_runs(timestamp) FK still resolves to a snapshots row.
-	var runTS int64
-	if err := db.QueryRowContext(ctx,
-		"SELECT timestamp FROM extractor_runs WHERE timestamp = ?", ts).Scan(&runTS); err != nil {
-		t.Fatalf("query extractor_run: %v", err)
-	}
-	if runTS != ts {
-		t.Errorf("extractor_run timestamp = %d, want %d", runTS, ts)
-	}
+// TestMigrate_v4ReshapesExtractorRunsToPerExtractor seeds a v2 database with a
+// per-output extractor_runs row (extractor="dom") and opens via meta.Open so
+// v4 reshapes extractor_runs to per-extractor and adds step_outputs. It
+// verifies the legacy "dom" output is grouped under a "wget" extractor run
+// (FK snapshot_id) with a step_outputs row carrying the original output name.
+func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "meta.db")
+	ctx := context.Background()
+	const ts int64 = 1700000000000000
+	seedV2DB(t, path, ts, "dom")
 
-	// No dangling foreign keys should remain after the rebuild.
-	rows, err := db.QueryContext(ctx, "PRAGMA foreign_key_check")
+	db, err := Open(ctx, path)
 	if err != nil {
-		t.Fatalf("foreign_key_check: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
-	violations := 0
-	for rows.Next() {
-		violations++
+	defer db.Close()
+
+	if got := userVersion(t, db); got != 4 {
+		t.Fatalf("user_version = %d, want 4", got)
 	}
-	rows.Close()
-	if violations > 0 {
-		t.Errorf("foreign_key_check reported %d violation(s), want 0", violations)
+
+	// One per-extractor run, grouped from the legacy "dom" output under "wget".
+	var runID, snapshotID int64
+	var extractor, status string
+	if err := db.QueryRowContext(ctx, `
+		SELECT id, snapshot_id, extractor, status FROM extractor_runs`).Scan(
+		&runID, &snapshotID, &extractor, &status); err != nil {
+		t.Fatalf("query extractor_runs: %v", err)
 	}
+	if extractor != "wget" {
+		t.Errorf("extractor = %q, want wget", extractor)
+	}
+	if status != "succeeded" {
+		t.Errorf("status = %q, want succeeded", status)
+	}
+	var snapID int64
+	if err := db.QueryRowContext(ctx, "SELECT id FROM snapshots WHERE timestamp = ?", ts).Scan(&snapID); err != nil {
+		t.Fatalf("query snapshot id: %v", err)
+	}
+	if snapshotID != snapID {
+		t.Errorf("snapshot_id = %d, want %d", snapshotID, snapID)
+	}
+
+	// One step_outputs row carrying the legacy output name and filename.
+	var name, filename string
+	if err := db.QueryRowContext(ctx, `
+		SELECT name, COALESCE(filename, '') FROM step_outputs WHERE run_id = ?`, runID).Scan(&name, &filename); err != nil {
+		t.Fatalf("query step_outputs: %v", err)
+	}
+	if name != "dom" {
+		t.Errorf("step_outputs.name = %q, want dom", name)
+	}
+	if filename != "output.html" {
+		t.Errorf("step_outputs.filename = %q, want output.html", filename)
+	}
+	assertNoFKViolations(t, db)
 }

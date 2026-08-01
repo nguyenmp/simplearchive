@@ -68,22 +68,34 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 	// The always-on extractors each record a succeeded run. (chromedp adds
 	// three more only when built with the "chromedp" tag, so assert by name
 	// rather than by exact count.)
-	runs, err := db.ListRunsByTimestamp(context.Background(), res.Timestamp)
+	runs, err := db.ListRunsBySnapshot(context.Background(), res.SnapshotID)
 	if err != nil {
-		t.Fatalf("ListRunsByTimestamp: %v", err)
+		t.Fatalf("ListRunsBySnapshot: %v", err)
 	}
-	byName := make(map[string]meta.ExtractorRun, len(runs))
+	byExtractor := make(map[string]meta.ExtractorRun, len(runs))
 	for _, r := range runs {
-		byName[r.Extractor] = r
+		byExtractor[r.Extractor] = r
 	}
-	for _, name := range []string{"dom", "headers", "singlefile"} {
-		r, ok := byName[name]
+	for _, name := range []string{"wget", "headers", "obelisk"} {
+		r, ok := byExtractor[name]
 		if !ok {
 			t.Errorf("missing run for %q", name)
 			continue
 		}
 		if r.Status != "succeeded" {
 			t.Errorf("run %q status = %q, want succeeded", name, r.Status)
+		}
+	}
+	// The wget run produced a "dom" output (the primary DOM fetch).
+	if r, ok := byExtractor["wget"]; ok {
+		foundDom := false
+		for _, o := range r.Outputs {
+			if o.Name == "dom" {
+				foundDom = true
+			}
+		}
+		if !foundDom {
+			t.Errorf("wget run missing a dom output: %+v", r.Outputs)
 		}
 	}
 }
@@ -104,8 +116,8 @@ func TestAdd_domFailure_marksFailed(t *testing.T) {
 
 	// Exactly one snapshot row, marked failed (not stuck in pending).
 	var status string
-	var ts int64
-	if err := db.QueryRow("SELECT status, timestamp FROM snapshots").Scan(&status, &ts); err != nil {
+	var snapshotID int64
+	if err := db.QueryRow("SELECT status, id FROM snapshots").Scan(&status, &snapshotID); err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if status != "failed" {
@@ -113,11 +125,11 @@ func TestAdd_domFailure_marksFailed(t *testing.T) {
 	}
 
 	// Only the primary DOM run was recorded (best-effort extractors did not run).
-	runs, err := db.ListRunsByTimestamp(context.Background(), ts)
+	runs, err := db.ListRunsBySnapshot(context.Background(), snapshotID)
 	if err != nil {
-		t.Fatalf("ListRunsByTimestamp: %v", err)
+		t.Fatalf("ListRunsBySnapshot: %v", err)
 	}
-	if len(runs) != 1 || runs[0].Extractor != "dom" || runs[0].Status != "failed" {
-		t.Fatalf("runs = %+v, want one failed dom run", runs)
+	if len(runs) != 1 || runs[0].Extractor != "wget" || runs[0].Status != "failed" {
+		t.Fatalf("runs = %+v, want one failed wget run", runs)
 	}
 }

@@ -28,26 +28,27 @@
 	{{if .Runs}}
 	<section class="mt-6">
 		<h2 class="text-lg font-semibold mb-2">Extractors</h2>
-		<table class="text-sm border-collapse">
-			<thead>
-				<tr class="text-left text-gray-500">
-					<th class="py-1 pr-4 font-semibold">Extractor</th>
-					<th class="py-1 pr-4 font-semibold">Status</th>
-					<th class="py-1 pr-4 font-semibold">Output</th>
-					<th class="py-1 font-semibold">Error</th>
-				</tr>
-			</thead>
-			<tbody>
-			{{range .Runs}}
-				<tr class="border-t border-gray-200">
-					<td class="py-1 pr-4 font-mono">{{.Extractor}}</td>
-					<td class="py-1 pr-4">{{.Status}}</td>
-					<td class="py-1 pr-4 font-mono">{{.Output}}</td>
-					<td class="py-1 font-mono text-gray-500">{{.Error}}</td>
-				</tr>
-			{{end}}
-			</tbody>
-		</table>
+		<ul class="space-y-3">
+		{{range .Runs}}
+			<li class="text-sm">
+				<div class="flex items-baseline gap-2">
+					<span class="font-mono font-semibold">{{.Extractor}}</span>
+					<span class="text-gray-500">{{.Status}}</span>
+					{{if .Error}}<span class="font-mono text-gray-500 text-xs">{{.Error}}</span>{{end}}
+				</div>
+				{{if .Outputs}}
+				<ul class="ml-4 mt-1 space-y-0.5">
+				{{range .Outputs}}
+					<li class="font-mono text-gray-600">
+						<span>{{.Name}}</span>{{if .Filename}}<span class="text-gray-400"> → </span><span>{{.Filename}}</span>{{end}}
+						<span class="text-gray-400 ml-2">{{.Status}}</span>
+					</li>
+				{{end}}
+				</ul>
+				{{end}}
+			</li>
+		{{end}}
+		</ul>
 	</section>
 	{{end}}
 

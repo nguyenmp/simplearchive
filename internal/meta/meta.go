@@ -28,10 +28,14 @@ var schemaV2 string
 //go:embed schema_v3_snapshots_surrogate_id.sql
 var schemaV3 string
 
+//go:embed schema_v4_extractor_runs_per_extractor.sql
+var schemaV4 string
+
 var migrations = map[int]string{
 	1: schemaV1,
 	2: schemaV2,
 	3: schemaV3,
+	4: schemaV4,
 }
 
 func dsn(path string) string {

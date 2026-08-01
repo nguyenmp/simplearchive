@@ -25,9 +25,10 @@ import (
 
 // Result is the outcome of a successful Add.
 type Result struct {
-	Timestamp int64
-	Title     string
-	Dir       string // on-disk snapshot directory
+	SnapshotID int64
+	Timestamp  int64
+	Title      string
+	Dir        string // on-disk snapshot directory
 }
 
 // defaultPipeline is the ordered list of extractors run for every URL. The
@@ -51,12 +52,12 @@ func defaultPipeline() []extractors.Extractor {
 // best-effort (logged at warn) and do not fail the ingest.
 func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, error) {
 	ts := snapshot.NewTimestamp()
-	resolved, err := db.CreateSnapshot(ctx, url, ts)
+	snapshotID, err := db.CreateSnapshot(ctx, url, ts)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest.Add: create snapshot: %w", err)
 	}
 
-	dir, err := archive.MkdirSnapshot(archiveRoot, resolved)
+	dir, err := archive.MkdirSnapshot(archiveRoot, ts)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest.Add: mkdir: %w", err)
 	}
@@ -67,9 +68,9 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	// Primary DOM fetch is fatal: on failure, record the run, mark the snapshot
 	// failed, and abort (no best-effort extractors run, no index.json).
 	pSteps, err := primary.Run(ctx, url, dir)
-	recordRuns(ctx, db, resolved, pSteps)
+	recordRuns(ctx, db, snapshotID, primary.Name(), pSteps)
 	if err != nil {
-		if ferr := db.MarkSnapshotFailed(ctx, resolved); ferr != nil {
+		if ferr := db.MarkSnapshotFailed(ctx, ts); ferr != nil {
 			slog.Warn("ingest: mark snapshot failed", "err", ferr)
 		}
 		return Result{}, fmt.Errorf("ingest.Add: %s: %w", primary.Name(), err)
@@ -80,7 +81,7 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	// and are not warned about; other failures are logged at warn.
 	for _, ex := range pipeline[1:] {
 		es, runErr := ex.Run(ctx, url, dir)
-		recordRuns(ctx, db, resolved, es)
+		recordRuns(ctx, db, snapshotID, ex.Name(), es)
 		if runErr != nil && !errors.Is(runErr, extractors.ErrSkipped) {
 			slog.Warn("ingest: extractor", "extractor", ex.Name(), "url", url, "err", runErr)
 		}
@@ -96,7 +97,7 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	}
 
 	if err := archive.WriteIndex(archive.IndexData{
-		Timestamp: resolved,
+		Timestamp: ts,
 		URL:       url,
 		Title:     title,
 		Dir:       dir,
@@ -105,31 +106,98 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 		return Result{}, fmt.Errorf("ingest.Add: write index: %w", err)
 	}
 
-	if err := db.UpdateSnapshot(ctx, resolved, title); err != nil {
+	if err := db.UpdateSnapshot(ctx, ts, title); err != nil {
 		return Result{}, fmt.Errorf("ingest.Add: update snapshot: %w", err)
 	}
 
-	return Result{Timestamp: resolved, Title: title, Dir: dir}, nil
+	return Result{SnapshotID: snapshotID, Timestamp: ts, Title: title, Dir: dir}, nil
 }
 
-// recordRuns persists one extractor_runs row per step. Failures here are logged
-// at warn but never fail the ingest; the snapshot's own status is the source of
-// truth for the overall outcome.
-func recordRuns(ctx context.Context, db *meta.DB, ts int64, steps []extractors.Step) {
+// recordRuns persists one extractor_runs row (per extractor) plus one
+// step_outputs row per output the extractor produced. A skipped extractor that
+// produced no steps records nothing, preserving the prior behavior. Failures
+// here are logged at warn but never fail the ingest; the snapshot's own status
+// is the source of truth for the overall outcome.
+func recordRuns(ctx context.Context, db *meta.DB, snapshotID int64, extractor string, steps []extractors.Step) {
+	if len(steps) == 0 {
+		return
+	}
+	run := meta.ExtractorRun{
+		SnapshotID: snapshotID,
+		Extractor:  extractor,
+		Status:     aggregateRunStatus(steps),
+		StartedAt:  minStepMicros(steps, true),
+		FinishedAt: minStepMicros(steps, false),
+	}
 	for _, s := range steps {
-		run := meta.ExtractorRun{
-			Timestamp:  ts,
-			Extractor:  s.Name,
-			Status:     s.Status,
-			Output:     s.Filename,
-			StartedAt:  s.StartTs.UnixMicro(),
-			FinishedAt: s.EndTs.UnixMicro(),
-		}
 		if s.Err != nil {
 			run.Error = s.Err.Error()
-		}
-		if _, err := db.InsertRun(ctx, run); err != nil {
-			slog.Warn("ingest: record run", "extractor", s.Name, "err", err)
+			break
 		}
 	}
+	runID, err := db.InsertRun(ctx, run)
+	if err != nil {
+		slog.Warn("ingest: record run", "extractor", extractor, "err", err)
+		return
+	}
+	for _, s := range steps {
+		out := meta.StepOutput{
+			RunID:    runID,
+			Name:     s.Name,
+			Filename: s.Filename,
+			Cmd:      s.Cmd,
+			Status:   s.Status,
+			StartTs:  s.StartTs.UnixMicro(),
+			EndTs:    s.EndTs.UnixMicro(),
+		}
+		if s.Err != nil {
+			out.Error = s.Err.Error()
+		}
+		if _, err := db.InsertStepOutput(ctx, runID, out); err != nil {
+			slog.Warn("ingest: record step output", "extractor", extractor, "step", s.Name, "err", err)
+		}
+	}
+}
+
+// aggregateRunStatus derives an extractor run's status from its steps: failed
+// if any step failed, succeeded if any succeeded, else skipped.
+func aggregateRunStatus(steps []extractors.Step) string {
+	var anySucceeded, anyFailed bool
+	for _, s := range steps {
+		switch s.Status {
+		case extractors.StatusFailed:
+			anyFailed = true
+		case extractors.StatusSucceeded:
+			anySucceeded = true
+		}
+	}
+	if anyFailed {
+		return extractors.StatusFailed
+	}
+	if anySucceeded {
+		return extractors.StatusSucceeded
+	}
+	return extractors.StatusSkipped
+}
+
+// minStepMicros returns the earliest step start (when wantStart) or the latest
+// step end (otherwise), in epoch microseconds. Steps with a zero time are
+// ignored so a missing timestamp does not collapse the range to 0.
+func minStepMicros(steps []extractors.Step, wantStart bool) int64 {
+	var out int64
+	for _, s := range steps {
+		var v int64
+		if wantStart {
+			v = s.StartTs.UnixMicro()
+		} else {
+			v = s.EndTs.UnixMicro()
+		}
+		if v == 0 {
+			continue
+		}
+		if out == 0 || (wantStart && v < out) || (!wantStart && v > out) {
+			out = v
+		}
+	}
+	return out
 }

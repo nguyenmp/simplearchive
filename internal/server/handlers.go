@@ -107,7 +107,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := detailData{Snapshot: snap}
-	if runs, rerr := s.DB.ListRunsByTimestamp(r.Context(), ts); rerr != nil {
+	if runs, rerr := s.DB.ListRunsBySnapshot(r.Context(), snap.ID); rerr != nil {
 		s.Logger.Error("detail: list runs", "err", rerr)
 	} else {
 		data.Runs = runs
