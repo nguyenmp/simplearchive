@@ -2,6 +2,7 @@ package archive
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 )
 
@@ -29,4 +30,17 @@ func ParseTitle(html []byte) string {
 func titleOrEmpty(title string) (string, bool) {
 	title = strings.TrimSpace(title)
 	return title, title != ""
+}
+
+// ParseInfoJSONTitle extracts the "title" field from a yt-dlp info JSON
+// document. It returns an empty string if the field is absent, empty, or the
+// data is not valid JSON.
+func ParseInfoJSONTitle(data []byte) string {
+	var v struct {
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(v.Title)
 }

@@ -29,3 +29,26 @@ func TestParseTitle_extractsTitle(t *testing.T) {
 		})
 	}
 }
+
+func TestParseInfoJSONTitle_extractsTitle(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		json string
+		want string
+	}{
+		{"simple", `{"title":"My Video"}`, "My Video"},
+		{"whitespace", `{"title":"  Trim Me  "}`, "Trim Me"},
+		{"empty string", `{"title":""}`, ""},
+		{"absent", `{"id":"abc123"}`, ""},
+		{"invalid json", `{not json}`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ParseInfoJSONTitle([]byte(tc.json)); got != tc.want {
+				t.Errorf("ParseInfoJSONTitle(%q) = %q, want %q", tc.json, got, tc.want)
+			}
+		})
+	}
+}
