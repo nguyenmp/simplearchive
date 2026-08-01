@@ -32,6 +32,7 @@ func (r *renderer) page(name string) (*template.Template, error) {
 	t := template.New("").Funcs(template.FuncMap{
 		"formatTimestamp": formatTimestamp,
 		"snapshotPath":    snapshotPath,
+		"statusClass":     statusClass,
 	})
 	if _, err := t.ParseFS(
 		templateFS,
@@ -52,4 +53,20 @@ func (r *renderer) render(w io.Writer, page string, data any) error {
 		return err
 	}
 	return t.ExecuteTemplate(w, "layout.html", data)
+}
+
+// statusClass returns the Tailwind badge classes for an extractor run status.
+func statusClass(status string) string {
+	switch status {
+	case "succeeded":
+		return "bg-green-100 text-green-800"
+	case "failed":
+		return "bg-red-100 text-red-800"
+	case "skipped":
+		return "bg-gray-200 text-gray-600"
+	case "running", "pending":
+		return "bg-amber-100 text-amber-800"
+	default:
+		return "bg-gray-200 text-gray-600"
+	}
 }

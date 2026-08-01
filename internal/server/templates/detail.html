@@ -7,35 +7,41 @@
 		{{if .Snapshot.Title}}{{.Snapshot.Title}}{{else}}<span class="text-gray-400">untitled</span>{{end}}
 	</h1>
 
-	<dl class="mt-4 text-sm space-y-1">
-		<div><dt class="inline font-semibold">URL:</dt>
-			<dd class="inline ml-2"><a href="{{.Snapshot.URL}}" class="text-blue-600 hover:underline break-all">{{.Snapshot.URL}}</a></dd>
-		</div>
-		<div><dt class="inline font-semibold">Created:</dt>
-			<dd class="inline ml-2">{{formatTimestamp .Snapshot.CreatedAt}}</dd>
-		</div>
-		<div><dt class="inline font-semibold">Updated:</dt>
-			<dd class="inline ml-2">{{formatTimestamp .Snapshot.UpdatedAt}}</dd>
-		</div>
+	<dl class="mt-4 text-sm grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+		<dt class="font-semibold">URL</dt>
+		<dd><a href="{{.Snapshot.URL}}" class="text-blue-600 hover:underline break-all">{{.Snapshot.URL}}</a></dd>
+		<dt class="font-semibold">Created</dt>
+		<dd>{{formatTimestamp .Snapshot.CreatedAt}}</dd>
+		<dt class="font-semibold">Updated</dt>
+		<dd>{{formatTimestamp .Snapshot.UpdatedAt}}</dd>
 	</dl>
 
 	{{if .Runs}}
 	<section class="mt-6">
 		<h2 class="text-lg font-semibold mb-2">Extractors</h2>
-		<ul class="space-y-3">
+		<ul class="space-y-4">
 		{{range .Runs}}
-			<li class="text-sm">
-				<div class="flex items-baseline gap-2">
+			<li>
+				<div class="flex items-baseline gap-2 text-sm">
 					<span class="font-mono font-semibold">{{.Extractor}}</span>
-					<span class="text-gray-500">{{.Status}}</span>
-					{{if .Error}}<span class="font-mono text-gray-500 text-xs">{{.Error}}</span>{{end}}
+					<span class="px-2 py-0.5 rounded-full text-xs font-medium {{statusClass .Status}}">{{.Status}}</span>
+					{{if .Error}}<span class="font-mono text-red-600 text-xs">{{.Error}}</span>{{end}}
 				</div>
 				{{if .Outputs}}
-				<ul class="ml-4 mt-1 space-y-0.5">
+				<ul class="ml-4 mt-1 w-fit text-sm font-mono text-gray-600 grid grid-cols-[8rem_auto_1fr] gap-x-2 gap-y-0.5">
 				{{range .Outputs}}
-					<li class="font-mono text-gray-600">
-						<span>{{.Name}}</span>{{if .Filename}}<span class="text-gray-400"> → </span><span>{{.Filename}}</span>{{end}}
-						<span class="text-gray-400 ml-2">{{.Status}}</span>
+					<li class="contents">
+						<span>{{.Name}}</span>
+						{{if .Filename}}
+							<span class="text-gray-400">→</span>
+							{{if index $.FilePaths .Filename}}
+								<a href="{{index $.FilePaths .Filename}}" class="text-blue-600 hover:underline">{{.Filename}}</a>
+							{{else}}
+								<span>{{.Filename}}</span>
+							{{end}}
+						{{else}}
+							<span></span><span></span>
+						{{end}}
 					</li>
 				{{end}}
 				</ul>
@@ -46,18 +52,18 @@
 	</section>
 	{{end}}
 
-	{{if .Files}}
+	{{if .OtherFiles}}
 	<section class="mt-6">
-		<h2 class="text-lg font-semibold mb-2">Archived files</h2>
-		<ul class="text-sm space-y-1">
-		{{range .Files}}
+		<h2 class="text-lg font-semibold mb-2">{{if .Runs}}Other files{{else}}Archived files{{end}}</h2>
+		<ul class="text-sm flex flex-wrap gap-x-4 gap-y-1">
+		{{range .OtherFiles}}
 			<li>
 				<a href="{{.Path}}" class="text-blue-600 hover:underline font-mono">{{.Name}}</a>
 			</li>
 		{{end}}
 		</ul>
 	</section>
-	{{else}}
+	{{else if not .Runs}}
 		<p class="mt-6 text-sm text-gray-500">No archived files found on disk.</p>
 	{{end}}
 </section>

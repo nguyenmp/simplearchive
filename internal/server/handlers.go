@@ -74,8 +74,13 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 // detailData is the view model for the detail page.
 type detailData struct {
 	Snapshot meta.Snapshot
-	Files    []fileLink
-	Runs     []meta.ExtractorRun
+	// FilePaths maps an on-disk filename to its URL path, so extractor
+	// outputs can link straight to the archived file.
+	FilePaths map[string]string
+	// OtherFiles are on-disk files not claimed by any extractor output
+	// (e.g. index.json).
+	OtherFiles []fileLink
+	Runs       []meta.ExtractorRun
 }
 
 // fileLink is a single archived output file linkable from the detail page.
@@ -115,15 +120,24 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	dir := archive.SnapshotDir(s.ArchiveRoot, ts)
 	if entries, derr := os.ReadDir(dir); derr == nil {
 		formatted := snapshot.Format(ts)
+		// Files not produced by any extractor output are listed separately.
+		claimed := make(map[string]bool)
+		for _, run := range data.Runs {
+			for _, out := range run.Outputs {
+				claimed[out.Filename] = true
+			}
+		}
+		data.FilePaths = make(map[string]string, len(entries))
 		for _, e := range entries {
 			if e.IsDir() {
 				continue
 			}
 			name := e.Name()
-			data.Files = append(data.Files, fileLink{
-				Name: name,
-				Path: "/archive/" + formatted + "/" + name,
-			})
+			path := "/archive/" + formatted + "/" + name
+			data.FilePaths[name] = path
+			if !claimed[name] {
+				data.OtherFiles = append(data.OtherFiles, fileLink{Name: name, Path: path})
+			}
 		}
 	}
 
