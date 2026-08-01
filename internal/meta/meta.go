@@ -22,8 +22,12 @@ const (
 //go:embed schema_v1_create_snapshots_table.sql
 var schemaV1 string
 
+//go:embed schema_v2_create_extractor_runs_table.sql
+var schemaV2 string
+
 var migrations = map[int]string{
 	1: schemaV1,
+	2: schemaV2,
 }
 
 func dsn(path string) string {
