@@ -52,7 +52,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	}
 
 	start := time.Now()
-	argv := argv(e.bin(), dir, pageURL)
+	argv := argv(e.bin(), pageURL)
 	_, runErr := subproc.Run(ctx, dir, argv[0], argv[1:]...)
 	end := time.Now()
 
@@ -104,13 +104,17 @@ func isVideoURL(pageURL string) bool {
 	return videoHosts[u.Hostname()]
 }
 
-// argv builds the yt-dlp invocation recorded in index.json and run by Run.
-func argv(bin, dir, pageURL string) []string {
+// argv builds the yt-dlp invocation recorded in index.json and run by Run. The
+// --output template is intentionally just "%(id)s" (no directory): the command
+// runs with its working directory set to the snapshot dir (see Run), so yt-dlp
+// resolves the relative template against that dir. Embedding the dir in
+// --output as well would double-nest the path.
+func argv(bin, pageURL string) []string {
 	return []string{
 		bin,
 		"--write-info-json", "--write-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
-		"--output", filepath.Join(dir, "%(id)s"),
+		"--output", "%(id)s",
 		pageURL,
 	}
 }

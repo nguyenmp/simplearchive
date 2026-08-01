@@ -36,12 +36,12 @@ func TestExtractor_nonVideoURL_skips(t *testing.T) {
 
 func TestArgv(t *testing.T) {
 	t.Parallel()
-	got := argv("yt-dlp", "/tmp/snap", "https://youtu.be/abc")
+	got := argv("yt-dlp", "https://youtu.be/abc")
 	want := []string{
 		"yt-dlp",
 		"--write-info-json", "--write-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
-		"--output", "/tmp/snap/%(id)s",
+		"--output", "%(id)s",
 		"https://youtu.be/abc",
 	}
 	if len(got) != len(want) {
@@ -86,6 +86,44 @@ func TestExtractor_noTranscript_reportsSkipped(t *testing.T) {
 	}
 	if steps[1].Status != extractors.StatusSkipped {
 		t.Errorf("transcript status = %q, want skipped", steps[1].Status)
+	}
+}
+
+// TestExtractor_relativeDir_noNesting guards against the path-nesting bug
+// where setting both cmd.Dir and a dir-prefixed --output caused yt-dlp to write
+// to <dir>/<dir>/<id>.info.json. It runs with a relative snapshot dir, so the
+// fake binary's cwd (cmd.Dir) is relative; the output must land directly under
+// the snapshot dir. Not parallel: it changes the process working directory.
+func TestExtractor_relativeDir_noNesting(t *testing.T) {
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(orig) }()
+
+	root := t.TempDir()
+	if err := os.Chdir(root); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	const rel = "snap"
+	if err := os.Mkdir(rel, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	bin := fakeBin(t, "echo '{\"title\":\"fake\"}' > fake.info.json\n")
+
+	steps, err := Extractor{Bin: bin}.Run(context.Background(), "https://youtu.be/abc", rel)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if steps[0].Status != extractors.StatusSucceeded || steps[0].Filename != "fake.info.json" {
+		t.Fatalf("meta = %+v, want succeeded fake.info.json", steps[0])
+	}
+	// Output must be directly under the snapshot dir, not nested.
+	if _, err := os.Stat(filepath.Join(rel, "fake.info.json")); err != nil {
+		t.Errorf("file missing under %q: %v", rel, err)
+	}
+	if _, err := os.Stat(filepath.Join(rel, rel, "fake.info.json")); err == nil {
+		t.Errorf("file nested under %q/%q (path-nesting bug regressed)", rel, rel)
 	}
 }
 
