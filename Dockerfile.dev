@@ -1,6 +1,6 @@
 FROM golang:1.26-alpine
 
-RUN apk add --no-cache ca-certificates wget libstdc++ libgcc yt-dlp
+RUN apk add --no-cache ca-certificates wget libstdc++ libgcc yt-dlp chromium
 
 # Tailwind CSS standalone CLI (musl build, arch-aware). Used to compile
 # internal/server/assets/input.css into the vendored tailwind.css. See

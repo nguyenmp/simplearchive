@@ -65,22 +65,26 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 		t.Errorf("Dir = %q, want suffix %q", res.Dir, snapshot.Format(res.Timestamp))
 	}
 
-	// One extractor_runs row per pipeline step (dom, favicon, headers), in order.
+	// The always-on extractors each record a succeeded run. (chromedp adds
+	// three more only when built with the "chromedp" tag, so assert by name
+	// rather than by exact count.)
 	runs, err := db.ListRunsByTimestamp(context.Background(), res.Timestamp)
 	if err != nil {
 		t.Fatalf("ListRunsByTimestamp: %v", err)
 	}
-	if len(runs) != 4 {
-		t.Fatalf("len(runs) = %d, want 4", len(runs))
+	byName := make(map[string]meta.ExtractorRun, len(runs))
+	for _, r := range runs {
+		byName[r.Extractor] = r
 	}
-	if runs[0].Extractor != "dom" || runs[0].Status != "succeeded" {
-		t.Errorf("runs[0] = %+v, want dom/succeeded", runs[0])
-	}
-	if runs[2].Extractor != "headers" || runs[2].Status != "succeeded" {
-		t.Errorf("runs[2] = %+v, want headers/succeeded", runs[2])
-	}
-	if runs[3].Extractor != "singlefile" || runs[3].Status != "succeeded" {
-		t.Errorf("runs[3] = %+v, want singlefile/succeeded", runs[3])
+	for _, name := range []string{"dom", "headers", "singlefile"} {
+		r, ok := byName[name]
+		if !ok {
+			t.Errorf("missing run for %q", name)
+			continue
+		}
+		if r.Status != "succeeded" {
+			t.Errorf("run %q status = %q, want succeeded", name, r.Status)
+		}
 	}
 }
 

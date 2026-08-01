@@ -14,6 +14,7 @@ import (
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/extractors"
+	"github.com/nguyenmp/simplearchive/internal/extractors/chromedp"
 	"github.com/nguyenmp/simplearchive/internal/extractors/headers"
 	"github.com/nguyenmp/simplearchive/internal/extractors/obelisk"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
@@ -40,6 +41,7 @@ func defaultPipeline() []extractors.Extractor {
 		headers.Extractor{},
 		obelisk.Extractor{},
 		ytdlp.Extractor{},
+		chromedp.Extractor{},
 	}
 }
 

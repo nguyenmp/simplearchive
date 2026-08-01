@@ -45,6 +45,17 @@ Workflow:
 
 The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted to `/app` so edits on the host are reflected instantly — no rebuild needed for code-only changes.
 
+### chromedp build tag
+
+The chromedp (headless Chromium) extractor is opt-in via the `chromedp` build tag. Without it the extractor compiles to a no-op stub that skips, so the default build needs no Chromium. The dev image ships `chromium`, so build and run with the tag to enable screenshot/PDF/DOM extraction:
+
+```
+docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test -tags chromedp ./...
+docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run -tags chromedp .
+```
+
+At runtime the extractor still skips (records no steps) if the `chromium` binary is not on `PATH`, so the same binary runs with or without the tag. Network restriction for the browser process is deferred to container-level isolation (see M3).
+
 I often have [the official ArchiveBox repo](https://github.com/ArchiveBox/ArchiveBox) checked out as a sibling as ~/ArchiveBoxOfficial/ for reference.
 
 Commits should be very small and self-contained.  Tasks should be broken up into many small understandable commits.  Not one commit per end-goal.
@@ -113,7 +124,7 @@ M3 — Richer extractors
 - [x] Per-extractor status in UI: detail page renders a per-extractor status table (read from `extractor_runs`).
 - [x] obelisk extractor: single-file HTML (`singlefile.html`), in-process; wire into default list.
 - [x] yt-dlp extractor: metadata + transcript only (`--write-info-json --write-subs --skip-download`), host-gated to video sites; add standalone binary to Dockerfile.dev.
-- [ ] chromedp extractor: screenshot + PDF + DOM, build-tagged (`-tags chromedp`) with a no-op stub when disabled and runtime binary-presence check; add `chromium` to Dockerfile.dev.
+- [x] chromedp extractor: screenshot + PDF + DOM, build-tagged (`-tags chromedp`) with a no-op stub when disabled and runtime binary-presence check; add `chromium` to Dockerfile.dev.
 - [ ] Re-run extractors on existing snapshots (deferred to a follow-up plan).
 - [ ] Revisit worker-isolation topology here. Network restriction for chromedp deferred to container-level isolation (TODO + design note).
 
