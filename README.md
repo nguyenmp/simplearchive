@@ -108,9 +108,9 @@ M2 — Read + serve + web add
 - [x] Local-run only.
 
 M3 — Richer extractors
-- [ ] Pluggable pipeline: `extractors.Extractor` interface + `Step`/`Result` types; wrap wget/favicon/headers as adapters; refactor `ingest.Add` to run a list of extractors (no behavior change).
-- [ ] Per-extractor status persistence: migration v2 `extractor_runs` table + queries; `ingest.Add` writes one row per step; introduce `failed` snapshot status when primary DOM fails.
-- [ ] Per-extractor status in UI: detail page renders a per-extractor status table (read from `extractor_runs`).
+- [x] Pluggable pipeline: `extractors.Extractor` interface + `Step`/`Result` types; wrap wget/favicon/headers as adapters; refactor `ingest.Add` to run a list of extractors (no behavior change).
+- [x] Per-extractor status persistence: migration v2 `extractor_runs` table + queries; `ingest.Add` writes one row per step; introduce `failed` snapshot status when primary DOM fails.
+- [x] Per-extractor status in UI: detail page renders a per-extractor status table (read from `extractor_runs`).
 - [ ] obelisk extractor: single-file HTML (`singlefile.html`), in-process; wire into default list.
 - [ ] yt-dlp extractor: metadata + transcript only (`--write-info-json --write-subs --skip-download`), host-gated to video sites; add standalone binary to Dockerfile.dev.
 - [ ] chromedp extractor: screenshot + PDF + DOM, build-tagged (`-tags chromedp`) with a no-op stub when disabled and runtime binary-presence check; add `chromium` to Dockerfile.dev.
