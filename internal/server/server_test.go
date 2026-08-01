@@ -5,9 +5,15 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/nguyenmp/simplearchive/internal/extractors"
+	"github.com/nguyenmp/simplearchive/internal/ingest"
 	"github.com/nguyenmp/simplearchive/internal/meta"
+	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
 // newTestDB returns an in-memory SQLite database suitable for tests.
@@ -124,5 +130,70 @@ func TestRun_servesOverListener(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatalf("Run returned error: %v", err)
+	}
+}
+
+// TestRunWorker_drainsEnqueuedSnapshot enqueues a URL and verifies the serve
+// worker goroutine archives it asynchronously (the web Add-URL form's path).
+func TestRunWorker_drainsEnqueuedSnapshot(t *testing.T) {
+	t.Parallel()
+	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer upstream.Close()
+
+	db := newTestDB(t)
+	root := filepath.Join(t.TempDir(), "archive")
+	s := &Server{DB: db, ArchiveRoot: root}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go s.runWorker(ctx)
+
+	snapshotID, _, err := ingest.Enqueue(context.Background(), db, upstream.URL)
+	if err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	// Poll until the worker finishes the snapshot (runs all terminal).
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := db.ListRunsBySnapshot(context.Background(), snapshotID)
+		if err != nil {
+			t.Fatalf("ListRunsBySnapshot: %v", err)
+		}
+		allTerminal := len(runs) > 0
+		for _, r := range runs {
+			if r.Status == extractors.StatusPending || r.Status == extractors.StatusRunning {
+				allTerminal = false
+			}
+		}
+		if allTerminal {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	runs, err := db.ListRunsBySnapshot(context.Background(), snapshotID)
+	if err != nil {
+		t.Fatalf("ListRunsBySnapshot: %v", err)
+	}
+	if len(runs) == 0 {
+		t.Fatalf("no runs archived; worker did not drain the snapshot")
+	}
+	for _, r := range runs {
+		if r.Status == extractors.StatusPending || r.Status == extractors.StatusRunning {
+			t.Errorf("run %q still %q after worker drain", r.Extractor, r.Status)
+		}
+	}
+
+	// The DOM fetch succeeded and wrote index.json to disk.
+	snap, err := db.GetSnapshotByID(context.Background(), snapshotID)
+	if err != nil {
+		t.Fatalf("GetSnapshotByID: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, snapshot.Format(snap.Timestamp), "index.json")); err != nil {
+		t.Errorf("index.json missing on disk: %v", err)
 	}
 }

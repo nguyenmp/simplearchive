@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nguyenmp/simplearchive/internal/ingest"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 )
 
@@ -104,6 +105,14 @@ func (s *Server) Run(ctx context.Context) error {
 		errCh <- nil
 	}()
 
+	// The worker goroutine drains pending snapshots (enqueued via the web
+	// Add-URL form or by a future batch enqueue). It shares the single DB
+	// writer with the HTTP handlers; archiving happens outside any DB
+	// transaction so the UI stays responsive while extractors run.
+	workerCtx, cancelWorker := context.WithCancel(ctx)
+	defer cancelWorker()
+	go s.runWorker(workerCtx)
+
 	// Wait for context cancellation or a signal, whichever comes first.
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -129,4 +138,31 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write([]byte(`{"ok":true}`))
+}
+
+// runWorker is the background goroutine that drains pending snapshots. It
+// claims and archives one at a time, sleeping briefly when the queue is empty,
+// and stops when ctx is cancelled. It logs per-snapshot errors but keeps
+// looping so a single bad URL does not stall the worker.
+func (s *Server) runWorker(ctx context.Context) {
+	if s.Logger == nil {
+		s.Logger = slog.Default()
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+		ran, err := ingest.RunNext(ctx, s.DB, s.ArchiveRoot)
+		if err != nil {
+			s.Logger.Error("worker: run snapshot", "err", err)
+		}
+		if ran {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
+	}
 }

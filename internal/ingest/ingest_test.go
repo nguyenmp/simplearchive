@@ -222,3 +222,64 @@ func TestEnqueue_thenRunSnapshot_drainsPendingRuns(t *testing.T) {
 		t.Errorf("index.json missing dom entry: %s", idx)
 	}
 }
+
+func TestRunNext_drainsQueueOneAtATime(t *testing.T) {
+	t.Parallel()
+	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	db, err := meta.Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatalf("meta.Open: %v", err)
+	}
+	defer db.Close()
+	root := filepath.Join(t.TempDir(), "archive")
+
+	// Enqueue two snapshots; neither is archived yet (runs are pending).
+	id1, _, err := Enqueue(context.Background(), db, srv.URL)
+	if err != nil {
+		t.Fatalf("Enqueue 1: %v", err)
+	}
+	id2, _, err := Enqueue(context.Background(), db, srv.URL)
+	if err != nil {
+		t.Fatalf("Enqueue 2: %v", err)
+	}
+	if id1 == id2 {
+		t.Fatalf("Enqueue returned the same snapshot id twice: %d", id1)
+	}
+
+	// RunNext claims and archives one snapshot per call, oldest first.
+	for i := 0; i < 2; i++ {
+		ran, err := RunNext(context.Background(), db, root)
+		if err != nil {
+			t.Fatalf("RunNext %d: %v", i, err)
+		}
+		if !ran {
+			t.Fatalf("RunNext %d = ran=false, want true (queue not empty)", i)
+		}
+	}
+	// Queue is now empty.
+	ran, err := RunNext(context.Background(), db, root)
+	if err != nil {
+		t.Fatalf("RunNext drain: %v", err)
+	}
+	if ran {
+		t.Errorf("RunNext = ran=true, want false on empty queue")
+	}
+
+	// Both snapshots are fully terminal.
+	for _, id := range []int64{id1, id2} {
+		runs, err := db.ListRunsBySnapshot(context.Background(), id)
+		if err != nil {
+			t.Fatalf("ListRunsBySnapshot %d: %v", id, err)
+		}
+		for _, r := range runs {
+			if r.Status == "pending" || r.Status == "running" {
+				t.Errorf("snapshot %d run %q still %q", id, r.Extractor, r.Status)
+			}
+		}
+	}
+}

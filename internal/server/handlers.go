@@ -147,9 +147,10 @@ func (s *Server) handleAddForm(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleAddSubmit handles POST /add: it archives the URL synchronously (inline
-// wget pipeline) and redirects to the new snapshot's detail page. On error the
-// form is re-rendered with the error message.
+// handleAddSubmit handles POST /add: it enqueues the URL for archiving and
+// immediately redirects to the new snapshot's detail page. The serve worker
+// goroutine drains the pending extractor_runs asynchronously; the detail page
+// shows the steps transitioning pending -> running -> terminal as it does.
 func (s *Server) handleAddSubmit(w http.ResponseWriter, r *http.Request) {
 	url := r.FormValue("url")
 	if url == "" {
@@ -157,14 +158,14 @@ func (s *Server) handleAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := ingest.Add(r.Context(), s.DB, s.ArchiveRoot, url)
+	_, ts, err := ingest.Enqueue(r.Context(), s.DB, url)
 	if err != nil {
-		s.Logger.Error("add: ingest", "url", url, "err", err)
-		s.renderAddError(w, url, "failed to archive: "+err.Error())
+		s.Logger.Error("add: enqueue", "url", url, "err", err)
+		s.renderAddError(w, url, "failed to enqueue: "+err.Error())
 		return
 	}
 
-	http.Redirect(w, r, snapshotPath(res.Timestamp), http.StatusSeeOther)
+	http.Redirect(w, r, snapshotPath(ts), http.StatusSeeOther)
 }
 
 func (s *Server) renderAddError(w http.ResponseWriter, url, msg string) {

@@ -193,7 +193,7 @@ M3.5 — Worker split (deferred until inline archiving is too slow)
 - [x] Reshape extractor_runs to per-extractor + step_outputs (snapshot_id FK).
 - [x] Drop snapshots.status + is_archived (derive from per-step state).
 - [x] Enqueue + RunSnapshot core: add enqueues pending extractor_runs; RunSnapshot claims a snapshot and runs its steps independently (no primary-fatal), rebuilding index.json per step.
-- [ ] serve runs a worker goroutine draining pending snapshots; web Add-URL enqueues async.
+- [x] serve runs a worker goroutine draining pending snapshots; web Add-URL enqueues async.
 - [ ] simplearchive add --wait blocks + streams step logs (preserves sync UX).
 
 M4 — Production
