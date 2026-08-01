@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nguyenmp/simplearchive/internal/archive"
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/ingest"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
@@ -116,6 +117,12 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		s.Logger.Error("detail: list runs", "err", rerr)
 	} else {
 		data.Runs = runs
+		for _, run := range runs {
+			if run.Status == extractors.StatusPending || run.Status == extractors.StatusRunning {
+				w.Header().Set("Refresh", "1")
+				break
+			}
+		}
 	}
 	dir := archive.SnapshotDir(s.ArchiveRoot, ts)
 	if entries, derr := os.ReadDir(dir); derr == nil {

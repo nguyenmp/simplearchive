@@ -170,6 +170,108 @@ func TestHandleDetail_found(t *testing.T) {
 	}
 }
 
+func TestHandleDetail_autoRefresh_pending(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	seedSnapshots(t, db, 1)
+	const ts int64 = 1700000000000000
+
+	snap, err := db.GetSnapshot(context.Background(), ts)
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+		SnapshotID: snap.ID,
+		Extractor:  "wget",
+		Status:     "pending",
+		StartedAt:  ts,
+	}); err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: filepath.Join(t.TempDir(), "archive")}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("Refresh"); got != "1" {
+		t.Errorf("Refresh header = %q, want %q (pending run should auto-refresh)", got, "1")
+	}
+}
+
+func TestHandleDetail_autoRefresh_running(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	seedSnapshots(t, db, 1)
+	const ts int64 = 1700000000000000
+
+	snap, err := db.GetSnapshot(context.Background(), ts)
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+		SnapshotID: snap.ID,
+		Extractor:  "wget",
+		Status:     "running",
+		StartedAt:  ts,
+	}); err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: filepath.Join(t.TempDir(), "archive")}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Refresh"); got != "1" {
+		t.Errorf("Refresh header = %q, want %q (running run should auto-refresh)", got, "1")
+	}
+}
+
+func TestHandleDetail_noAutoRefreshWhenTerminal(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	seedSnapshots(t, db, 1)
+	const ts int64 = 1700000000000000
+
+	snap, err := db.GetSnapshot(context.Background(), ts)
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	for _, status := range []string{"succeeded", "failed", "skipped"} {
+		if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+			SnapshotID: snap.ID,
+			Extractor:  "wget",
+			Status:     status,
+			StartedAt:  ts,
+			FinishedAt: ts + 1000,
+		}); err != nil {
+			t.Fatalf("InsertRun(%s): %v", status, err)
+		}
+	}
+
+	s := &Server{DB: db, ArchiveRoot: filepath.Join(t.TempDir(), "archive")}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("Refresh"); got != "" {
+		t.Errorf("Refresh header = %q, want empty (all runs terminal)", got)
+	}
+}
+
 func TestHandleDetail_notFound(t *testing.T) {
 	t.Parallel()
 	s := &Server{DB: newTestDB(t)}
