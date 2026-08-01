@@ -8,12 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/nguyenmp/simplearchive/internal/extractors"
+	"github.com/nguyenmp/simplearchive/internal/subproc"
 )
 
 // videoHosts is the set of hosts yt-dlp is run for. Other hosts skip the
@@ -54,11 +53,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 
 	start := time.Now()
 	argv := argv(e.bin(), dir, pageURL)
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	cmd.Dir = dir
-	stderr := &strings.Builder{}
-	cmd.Stderr = stderr
-	runErr := cmd.Run()
+	_, runErr := subproc.Run(ctx, dir, argv[0], argv[1:]...)
 	end := time.Now()
 
 	infoFiles, _ := filepath.Glob(filepath.Join(dir, "*.info.json"))
@@ -74,7 +69,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	} else {
 		meta.Status = extractors.StatusFailed
 		if runErr != nil {
-			meta.Err = fmt.Errorf("ytdlp: %w: %s", runErr, strings.TrimSpace(stderr.String()))
+			meta.Err = fmt.Errorf("ytdlp: %w", runErr)
 		} else {
 			meta.Err = errors.New("ytdlp: no info.json produced")
 		}

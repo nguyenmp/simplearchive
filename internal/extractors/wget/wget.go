@@ -6,8 +6,9 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os/exec"
 	"path/filepath"
+
+	"github.com/nguyenmp/simplearchive/internal/subproc"
 )
 
 // OutputFile is the filename wget writes the page body to.
@@ -20,13 +21,12 @@ const FaviconFile = "favicon.ico"
 // the path of the written file.
 func Fetch(ctx context.Context, url, dir string) (string, error) {
 	out := filepath.Join(dir, OutputFile)
-	cmd := exec.CommandContext(ctx, "wget",
+	if _, err := subproc.Run(ctx, "", "wget",
 		"--no-verbose",
 		"--output-document="+out,
 		url,
-	)
-	if stderr, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("wget.Fetch: %w: %s", err, stderr)
+	); err != nil {
+		return "", fmt.Errorf("wget.Fetch: %w", err)
 	}
 	return out, nil
 }
@@ -52,13 +52,12 @@ func FetchFavicon(ctx context.Context, pageURL, dir string) (string, error) {
 		return "", fmt.Errorf("wget.FetchFavicon: %w", err)
 	}
 	out := filepath.Join(dir, FaviconFile)
-	cmd := exec.CommandContext(ctx, "wget",
+	if _, err := subproc.Run(ctx, "", "wget",
 		"--no-verbose",
 		"--output-document="+out,
 		faviconURL,
-	)
-	if stderr, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("wget.FetchFavicon: %w: %s", err, stderr)
+	); err != nil {
+		return "", fmt.Errorf("wget.FetchFavicon: %w", err)
 	}
 	return out, nil
 }
