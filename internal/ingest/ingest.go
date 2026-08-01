@@ -228,6 +228,13 @@ func aggregateRunStatus(steps []extractors.Step) string {
 // snapshot's terminal extractor_runs + step_outputs. It is called after each
 // extractor finishes so the on-disk index reflects durable DB state (crash-safe
 // and resumable).
+//
+// The caller must hold the snapshot lock: a run for this snapshot must be
+// "running" while rebuildIndex writes. The single-running-run-per-snapshot
+// invariant (see meta.ClaimNextSnapshot) is what serializes index.json writes
+// across workers, so two workers never interleave writes to the same snapshot's
+// index.json. Calling this outside a run's "running" window risks a torn write
+// if another worker is archiving the same snapshot.
 func rebuildIndex(ctx context.Context, db *meta.DB, dir string, snap meta.Snapshot) {
 	runs, err := db.ListRunsBySnapshot(ctx, snap.ID)
 	if err != nil {

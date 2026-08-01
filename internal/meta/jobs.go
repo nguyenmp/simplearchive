@@ -45,6 +45,11 @@ func (d *DB) InsertPendingRuns(ctx context.Context, snapshotID int64, extractors
 // crash between runs leaves the unstarted runs pending (reclaimable) rather than
 // stranded in "running". This relies on the single-writer connection for
 // atomicity.
+//
+// The same invariant also serializes index.json writes per snapshot: a
+// snapshot can be rebuilt (see ingest.rebuildIndex) only while one of its runs
+// is "running", so two workers never interleave writes to the same snapshot's
+// index.json.
 func (d *DB) ClaimNextSnapshot(ctx context.Context) (int64, bool, error) {
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
