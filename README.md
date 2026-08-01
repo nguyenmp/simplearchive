@@ -125,7 +125,6 @@ M3 — Richer extractors
 - [x] obelisk extractor: single-file HTML (`singlefile.html`), in-process; wire into default list.
 - [x] yt-dlp extractor: metadata + transcript only (`--write-info-json --write-subs --skip-download`), host-gated to video sites; add standalone binary to Dockerfile.dev.
 - [x] chromedp extractor: screenshot + PDF + DOM, build-tagged (`-tags chromedp`) with a no-op stub when disabled and runtime binary-presence check; add `chromium` to Dockerfile.dev.
-- [ ] Re-run extractors on existing snapshots (deferred to a follow-up plan).
 - [ ] Revisit worker-isolation topology here. Network restriction for chromedp deferred to container-level isolation (TODO + design note).
 
 M3.5 — Worker split (deferred until inline archiving is too slow)
@@ -148,6 +147,7 @@ M6 - Search
 - [ ] Semantic search across the same
 
 Deferred
+- [ ] Re-run extractors on existing snapshots.
 - [ ] URL validation + response-size cap + timeouts.
 
 ## Contributing
