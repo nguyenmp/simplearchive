@@ -70,14 +70,17 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListRunsByTimestamp: %v", err)
 	}
-	if len(runs) != 3 {
-		t.Fatalf("len(runs) = %d, want 3", len(runs))
+	if len(runs) != 4 {
+		t.Fatalf("len(runs) = %d, want 4", len(runs))
 	}
 	if runs[0].Extractor != "dom" || runs[0].Status != "succeeded" {
 		t.Errorf("runs[0] = %+v, want dom/succeeded", runs[0])
 	}
 	if runs[2].Extractor != "headers" || runs[2].Status != "succeeded" {
 		t.Errorf("runs[2] = %+v, want headers/succeeded", runs[2])
+	}
+	if runs[3].Extractor != "singlefile" || runs[3].Status != "succeeded" {
+		t.Errorf("runs[3] = %+v, want singlefile/succeeded", runs[3])
 	}
 }
 

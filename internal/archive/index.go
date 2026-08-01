@@ -145,6 +145,8 @@ func extractorFor(filename string) string {
 		return "favicon"
 	case "headers.json":
 		return "headers"
+	case "singlefile.html":
+		return "singlefile"
 	default:
 		return filename
 	}

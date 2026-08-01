@@ -14,6 +14,7 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/extractors/headers"
+	"github.com/nguyenmp/simplearchive/internal/extractors/obelisk"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
@@ -35,6 +36,7 @@ func defaultPipeline() []extractors.Extractor {
 		wget.DOMExtractor{},
 		wget.FaviconExtractor{},
 		headers.Extractor{},
+		obelisk.Extractor{},
 	}
 }
 
