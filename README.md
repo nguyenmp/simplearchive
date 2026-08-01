@@ -33,6 +33,51 @@ Extractors:
 
 Everything gets built into a docker image that gets deployed.
 
+## Data Model
+
+`meta.db` is a single SQLite database (WAL, single writer) holding the archive index. The on-disk `archive/{timestamp}/` directories and per-snapshot `index.json` files are the ArchiveBox-compatible serialization; `meta.db` is the source of truth for queryable state.
+
+### snapshots
+
+One row per archived URL submission. `id` is the internal surrogate primary key used by foreign keys; `timestamp` is the ArchiveBox "seconds.microseconds" directory name (unique) used for routes and `index.json`.
+
+- `id` INTEGER PRIMARY KEY AUTOINCREMENT
+- `timestamp` INTEGER NOT NULL UNIQUE — ArchiveBox dir name / route key / index.json key
+- `url` TEXT NOT NULL
+- `title` TEXT
+- `created_at`, `updated_at` INTEGER NOT NULL (epoch microseconds)
+
+Snapshot status and `is_archived` are **not stored** — they are derived from the snapshot's `extractor_runs` (see [Deferred](#milestones)). Imported snapshots (no `extractor_runs` rows) are treated as succeeded.
+
+### extractor_runs
+
+One row per extractor run for a snapshot (`wget`, `wget-favicon`, `headers`, `obelisk`, `ytdlp`, `chromedp`). The unit of work **and** the unit of retry. Steps are independent — no primary-fatal, no cancellation (a future bulk `UPDATE … SET status='skipped' WHERE status='pending'` can cancel if ever needed).
+
+- `id` INTEGER PRIMARY KEY AUTOINCREMENT
+- `snapshot_id` INTEGER NOT NULL REFERENCES snapshots(id)
+- `extractor` TEXT NOT NULL — `Extractor.Name()`
+- `status` TEXT NOT NULL — `pending` | `running` | `succeeded` | `failed` | `skipped`
+- `started_at`, `finished_at` INTEGER (NULL until the step runs)
+- `error` TEXT
+
+A retry is a **new** `extractor_runs` row (same snapshot + extractor, higher `id`); the latest attempt (max `id`) is the current state.
+
+### step_outputs
+
+One row per output an extractor run produced (wget → `dom` + `favicon`; chromedp → `screenshot` + `pdf` + `chromedp_dom`).
+
+- `id` INTEGER PRIMARY KEY AUTOINCREMENT
+- `run_id` INTEGER NOT NULL REFERENCES extractor_runs(id)
+- `name` TEXT NOT NULL — `Step.Name` (the ArchiveBox extractor/plugin key)
+- `filename` TEXT, `cmd` TEXT (JSON), `status` TEXT NOT NULL
+- `start_ts`, `end_ts` INTEGER, `error` TEXT
+
+### Relationships
+
+- snapshots 1—N extractor_runs (by `snapshot_id`)
+- extractor_runs 1—N step_outputs (by `run_id`)
+- `index.json` is a projection of terminal `extractor_runs` + `step_outputs`, rebuilt per extractor finish (so it is crash-safe and resumable).
+
 ## Local Development
 
 We develop inside Docker so the only host dependency is Docker itself (no need to install Go, wget, yt-dlp, etc. on the host machine). The same `Dockerfile.dev` doubles as the basis for the production image later.
