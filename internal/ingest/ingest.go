@@ -57,9 +57,14 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	pipeline := defaultPipeline()
 	primary := pipeline[0]
 
-	// Primary DOM fetch is fatal.
+	// Primary DOM fetch is fatal: on failure, record the run, mark the snapshot
+	// failed, and abort (no best-effort extractors run, no index.json).
 	pSteps, err := primary.Run(ctx, url, dir)
+	recordRuns(ctx, db, resolved, pSteps)
 	if err != nil {
+		if ferr := db.MarkSnapshotFailed(ctx, resolved); ferr != nil {
+			slog.Warn("ingest: mark snapshot failed", "err", ferr)
+		}
 		return Result{}, fmt.Errorf("ingest.Add: %s: %w", primary.Name(), err)
 	}
 	outputs := stepFilenames(pSteps)
@@ -67,6 +72,7 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	// Best-effort extractors.
 	for _, ex := range pipeline[1:] {
 		steps, runErr := ex.Run(ctx, url, dir)
+		recordRuns(ctx, db, resolved, steps)
 		if runErr != nil {
 			slog.Warn("ingest: extractor", "extractor", ex.Name(), "url", url, "err", runErr)
 		}
@@ -105,4 +111,26 @@ func stepFilenames(steps []extractors.Step) []string {
 		out = append(out, s.Filename)
 	}
 	return out
+}
+
+// recordRuns persists one extractor_runs row per step. Failures here are logged
+// at warn but never fail the ingest; the snapshot's own status is the source of
+// truth for the overall outcome.
+func recordRuns(ctx context.Context, db *meta.DB, ts int64, steps []extractors.Step) {
+	for _, s := range steps {
+		run := meta.ExtractorRun{
+			Timestamp:  ts,
+			Extractor:  s.Name,
+			Status:     s.Status,
+			Output:     s.Filename,
+			StartedAt:  s.StartTs.UnixMicro(),
+			FinishedAt: s.EndTs.UnixMicro(),
+		}
+		if s.Err != nil {
+			run.Error = s.Err.Error()
+		}
+		if _, err := db.InsertRun(ctx, run); err != nil {
+			slog.Warn("ingest: record run", "extractor", s.Name, "err", err)
+		}
+	}
 }

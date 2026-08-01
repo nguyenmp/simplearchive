@@ -74,6 +74,28 @@ func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
 	return err
 }
 
+// MarkSnapshotFailed sets a snapshot's status to 'failed' (leaving is_archived
+// unchanged) and bumps updated_at. It is used when the primary DOM extractor
+// fails so the snapshot is not left stuck in 'pending'.
+func (d *DB) MarkSnapshotFailed(ctx context.Context, ts int64) error {
+	now := time.Now().UnixMicro()
+	res, err := d.ExecContext(ctx, `
+		UPDATE snapshots
+		   SET status = 'failed', updated_at = ?
+		 WHERE timestamp = ?`, now, ts)
+	if err != nil {
+		return fmt.Errorf("meta.MarkSnapshotFailed: update: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("meta.MarkSnapshotFailed: rows affected: %w", err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("meta.MarkSnapshotFailed: no row for timestamp %d", ts)
+	}
+	return nil
+}
+
 // UpdateSnapshot marks a snapshot as successfully archived, recording its title.
 // A null title is stored when title is the empty string.
 func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
