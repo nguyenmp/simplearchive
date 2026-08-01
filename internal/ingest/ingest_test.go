@@ -110,24 +110,115 @@ func TestAdd_domFailure_recordsFailedRun(t *testing.T) {
 	defer db.Close()
 
 	root := filepath.Join(t.TempDir(), "archive")
-	_, err = Add(context.Background(), db, root, "http://127.0.0.1:1/no-such-port")
-	if err == nil {
-		t.Fatal("Add on unreachable URL returned nil error")
+	// Steps are independent (no primary-fatal): Add does not error when the DOM
+	// fetch fails — it runs every extractor and records per-step status.
+	res, err := Add(context.Background(), db, root, "http://127.0.0.1:1/no-such-port")
+	if err != nil {
+		t.Fatalf("Add returned error %v; steps are independent and should not fail Add", err)
 	}
 
-	// Exactly one snapshot row; it has no stored status, so the failed state
-	// is read from its extractor_runs.
-	var snapshotID int64
-	if err := db.QueryRow("SELECT id FROM snapshots").Scan(&snapshotID); err != nil {
-		t.Fatalf("query: %v", err)
+	runs, err := db.ListRunsBySnapshot(context.Background(), res.SnapshotID)
+	if err != nil {
+		t.Fatalf("ListRunsBySnapshot: %v", err)
+	}
+	byExtractor := make(map[string]meta.ExtractorRun, len(runs))
+	for _, r := range runs {
+		byExtractor[r.Extractor] = r
+	}
+	r, ok := byExtractor["wget"]
+	if !ok {
+		t.Fatalf("missing wget run: %+v", runs)
+	}
+	if r.Status != "failed" {
+		t.Errorf("wget run status = %q, want failed", r.Status)
+	}
+	if r.Error == "" {
+		t.Errorf("wget run error = empty, want a failure cause")
 	}
 
-	// Only the primary DOM run was recorded (best-effort extractors did not run).
+	// The DOM fetch failed, so there is no title.
+	if res.Title != "" {
+		t.Errorf("title = %q, want empty (no DOM)", res.Title)
+	}
+}
+
+func TestEnqueue_thenRunSnapshot_drainsPendingRuns(t *testing.T) {
+	t.Parallel()
+	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	db, err := meta.Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatalf("meta.Open: %v", err)
+	}
+	defer db.Close()
+	root := filepath.Join(t.TempDir(), "archive")
+
+	snapshotID, ts, err := Enqueue(context.Background(), db, srv.URL)
+	if err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	// Enqueue creates one pending run per default-pipeline extractor.
 	runs, err := db.ListRunsBySnapshot(context.Background(), snapshotID)
 	if err != nil {
 		t.Fatalf("ListRunsBySnapshot: %v", err)
 	}
-	if len(runs) != 1 || runs[0].Extractor != "wget" || runs[0].Status != "failed" {
-		t.Fatalf("runs = %+v, want one failed wget run", runs)
+	if len(runs) != len(defaultPipeline()) {
+		t.Fatalf("pending runs = %d, want %d", len(runs), len(defaultPipeline()))
+	}
+	for _, r := range runs {
+		if r.Status != "pending" {
+			t.Errorf("run %q status = %q, want pending", r.Extractor, r.Status)
+		}
+	}
+
+	res, err := RunSnapshot(context.Background(), db, root, snapshotID)
+	if err != nil {
+		t.Fatalf("RunSnapshot: %v", err)
+	}
+	if res.Timestamp != ts {
+		t.Errorf("timestamp = %d, want %d", res.Timestamp, ts)
+	}
+	if res.Title != "Example" {
+		t.Errorf("title = %q, want Example", res.Title)
+	}
+
+	// All runs are now terminal; the wget run succeeded with a dom output.
+	runs, err = db.ListRunsBySnapshot(context.Background(), snapshotID)
+	if err != nil {
+		t.Fatalf("ListRunsBySnapshot: %v", err)
+	}
+	byExtractor := make(map[string]meta.ExtractorRun, len(runs))
+	for _, r := range runs {
+		byExtractor[r.Extractor] = r
+		if r.Status == "pending" || r.Status == "running" {
+			t.Errorf("run %q still %q", r.Extractor, r.Status)
+		}
+	}
+	if r, ok := byExtractor["wget"]; !ok || r.Status != "succeeded" {
+		t.Errorf("wget run = %+v, want succeeded", r)
+	} else {
+		foundDom := false
+		for _, o := range r.Outputs {
+			if o.Name == "dom" {
+				foundDom = true
+			}
+		}
+		if !foundDom {
+			t.Errorf("wget run missing dom output: %+v", r.Outputs)
+		}
+	}
+
+	// index.json was rebuilt and records the dom output.
+	idx, err := os.ReadFile(filepath.Join(res.Dir, archive.IndexFile))
+	if err != nil {
+		t.Fatalf("read index.json: %v", err)
+	}
+	if !strings.Contains(string(idx), `"dom"`) {
+		t.Errorf("index.json missing dom entry: %s", idx)
 	}
 }

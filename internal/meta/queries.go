@@ -82,3 +82,22 @@ func (d *DB) GetSnapshot(ctx context.Context, ts int64) (Snapshot, error) {
 	}
 	return s, nil
 }
+
+// GetSnapshotByID returns the single snapshot identified by its surrogate id. It
+// returns ErrNotFound when no row matches. Used by the worker, which dispatches
+// by id (the foreign key), not by the ArchiveBox timestamp.
+func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
+	var s Snapshot
+	err := d.QueryRowContext(ctx, `
+		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
+		FROM snapshots
+		WHERE id = ?`, id).Scan(
+		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Snapshot{}, ErrNotFound
+		}
+		return Snapshot{}, fmt.Errorf("meta.GetSnapshotByID: %w", err)
+	}
+	return s, nil
+}

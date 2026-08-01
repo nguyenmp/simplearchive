@@ -28,7 +28,7 @@ func (c *CLI) runAdd(ctx context.Context, args []string) int {
 		return 1
 	}
 
-	c.Logger.Info("add", "url", url, "timestamp", snapshot.Format(res.Timestamp), "dir", res.Dir, "status", "succeeded")
+	c.Logger.Info("add", "url", url, "timestamp", snapshot.Format(res.Timestamp), "dir", res.Dir)
 	fmt.Fprintf(c.Stdout, "archived %s url=%q title=%q\n", snapshot.Format(res.Timestamp), url, res.Title)
 	return 0
 }

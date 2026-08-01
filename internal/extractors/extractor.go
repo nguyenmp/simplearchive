@@ -11,8 +11,12 @@ import (
 )
 
 // Status of an extractor step. These match the "status" field ArchiveBox records
-// in each ArchiveResult of a snapshot's index.json history.
+// in each ArchiveResult of a snapshot's index.json history. The pending/running
+// states are used by the queue (extractor_runs) before a step reaches a
+// terminal state; they are never written to index.json.
 const (
+	StatusPending   = "pending"
+	StatusRunning   = "running"
 	StatusSucceeded = "succeeded"
 	StatusFailed    = "failed"
 	StatusSkipped   = "skipped"
