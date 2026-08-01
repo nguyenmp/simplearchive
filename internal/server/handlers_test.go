@@ -113,6 +113,17 @@ func TestHandleDetail_found(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
+	// Seed an extractor run so the per-extractor status table is populated.
+	if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+		Timestamp:  ts,
+		Extractor:  "dom",
+		Status:     "succeeded",
+		Output:     "output.html",
+		StartedAt:  ts,
+		FinishedAt: ts + 1000,
+	}); err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
 
 	s := &Server{DB: db, ArchiveRoot: root}
 	r := s.Router()
@@ -137,6 +148,13 @@ func TestHandleDetail_found(t *testing.T) {
 	// File link points at the static archive route.
 	if !strings.Contains(body, "/archive/"+snapshot.Format(ts)+"/output.html") {
 		t.Errorf("body missing archive file path: %q", body)
+	}
+	// Per-extractor status table is rendered.
+	if !strings.Contains(body, "Extractors") {
+		t.Errorf("body missing extractors heading: %q", body)
+	}
+	if !strings.Contains(body, ">dom<") || !strings.Contains(body, "succeeded") {
+		t.Errorf("body missing dom/succeeded run row: %q", body)
 	}
 }
 

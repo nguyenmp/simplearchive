@@ -75,6 +75,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 type detailData struct {
 	Snapshot meta.Snapshot
 	Files    []fileLink
+	Runs     []meta.ExtractorRun
 }
 
 // fileLink is a single archived output file linkable from the detail page.
@@ -106,6 +107,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := detailData{Snapshot: snap}
+	if runs, rerr := s.DB.ListRunsByTimestamp(r.Context(), ts); rerr != nil {
+		s.Logger.Error("detail: list runs", "err", rerr)
+	} else {
+		data.Runs = runs
+	}
 	dir := archive.SnapshotDir(s.ArchiveRoot, ts)
 	if entries, derr := os.ReadDir(dir); derr == nil {
 		formatted := snapshot.Format(ts)
