@@ -6,6 +6,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -69,16 +70,17 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 		}
 		return Result{}, fmt.Errorf("ingest.Add: %s: %w", primary.Name(), err)
 	}
-	outputs := stepFilenames(pSteps)
+	steps := append([]extractors.Step(nil), pSteps...)
 
-	// Best-effort extractors.
+	// Best-effort extractors. Skipped extractors (ErrSkipped) contribute no steps
+	// and are not warned about; other failures are logged at warn.
 	for _, ex := range pipeline[1:] {
-		steps, runErr := ex.Run(ctx, url, dir)
-		recordRuns(ctx, db, resolved, steps)
-		if runErr != nil {
+		es, runErr := ex.Run(ctx, url, dir)
+		recordRuns(ctx, db, resolved, es)
+		if runErr != nil && !errors.Is(runErr, extractors.ErrSkipped) {
 			slog.Warn("ingest: extractor", "extractor", ex.Name(), "url", url, "err", runErr)
 		}
-		outputs = append(outputs, stepFilenames(steps)...)
+		steps = append(steps, es...)
 	}
 
 	// Parse the title from the DOM output.
@@ -94,7 +96,7 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 		URL:       url,
 		Title:     title,
 		Dir:       dir,
-		Outputs:   outputs,
+		Steps:     steps,
 	}); err != nil {
 		return Result{}, fmt.Errorf("ingest.Add: write index: %w", err)
 	}
@@ -104,15 +106,6 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	}
 
 	return Result{Timestamp: resolved, Title: title, Dir: dir}, nil
-}
-
-// stepFilenames returns the output filename of each step, preserving order.
-func stepFilenames(steps []extractors.Step) []string {
-	out := make([]string, 0, len(steps))
-	for _, s := range steps {
-		out = append(out, s.Filename)
-	}
-	return out
 }
 
 // recordRuns persists one extractor_runs row per step. Failures here are logged

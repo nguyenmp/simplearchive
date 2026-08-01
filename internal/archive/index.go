@@ -10,19 +10,25 @@ import (
 	"sort"
 	"time"
 
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
 // IndexFile is the filename of the per-snapshot index.
 const IndexFile = "index.json"
 
-// IndexData describes a snapshot to write to index.json.
+// IndexData describes a snapshot to write to index.json. When Steps is
+// non-empty, history/latest are built from it (keyed by Step.Name, with each
+// Step's Cmd, Status, and timestamps). Otherwise Outputs is used as a
+// convenience fallback that derives extractor names and commands from the
+// output filenames (used by tests and simple fixtures).
 type IndexData struct {
 	Timestamp int64 // epoch microseconds
 	URL       string
 	Title     string // may be empty
 	Dir       string // snapshot directory (for pwd in history entries)
 	Outputs   []string
+	Steps     []extractors.Step
 }
 
 // IndexEntry is the subset of an on-disk index.json that simplearchive imports
@@ -77,18 +83,37 @@ func WriteIndex(data IndexData) error {
 
 	latest := map[string]string{}
 	history := map[string][]archiveResult{}
-	for _, out := range data.Outputs {
-		extractor := extractorFor(out)
-		latest[extractor] = out
-		history[extractor] = []archiveResult{{
-			Cmd:     commandFor(extractor, data, u),
-			Output:  out,
-			Pwd:     data.Dir,
-			Schema:  "ArchiveResult",
-			StartTs: now,
-			EndTs:   now,
-			Status:  "succeeded",
-		}}
+	if len(data.Steps) > 0 {
+		for _, s := range data.Steps {
+			cmd := s.Cmd
+			if cmd == nil {
+				cmd = []string{}
+			}
+			latest[s.Name] = s.Filename
+			history[s.Name] = []archiveResult{{
+				Cmd:     cmd,
+				Output:  s.Filename,
+				Pwd:     data.Dir,
+				Schema:  "ArchiveResult",
+				StartTs: s.StartTs.UTC(),
+				EndTs:   s.EndTs.UTC(),
+				Status:  s.Status,
+			}}
+		}
+	} else {
+		for _, out := range data.Outputs {
+			extractor := extractorFor(out)
+			latest[extractor] = out
+			history[extractor] = []archiveResult{{
+				Cmd:     commandFor(extractor, data, u),
+				Output:  out,
+				Pwd:     data.Dir,
+				Schema:  "ArchiveResult",
+				StartTs: now,
+				EndTs:   now,
+				Status:  "succeeded",
+			}}
+		}
 	}
 	if hasTitle {
 		latest["title"] = title

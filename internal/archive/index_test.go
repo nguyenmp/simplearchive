@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
@@ -120,6 +122,48 @@ func TestWriteIndex_nullTitleWhenEmpty(t *testing.T) {
 	}
 	if _, ok := got.Latest["title"]; ok {
 		t.Error("latest.title present, want absent for empty title")
+	}
+}
+
+func TestWriteIndex_buildsHistoryFromSteps(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	start := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Second)
+	data := IndexData{
+		Timestamp: 1728277530511056,
+		URL:       "https://youtu.be/abc",
+		Title:     "A Video",
+		Dir:       dir,
+		Steps: []extractors.Step{
+			{Name: "dom", Filename: "output.html", Cmd: []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, "output.html"), "https://youtu.be/abc"}, Status: "succeeded", StartTs: start, EndTs: end},
+			{Name: "youtube_metadata", Filename: "abc.info.json", Cmd: []string{"yt-dlp", "--write-info-json"}, Status: "succeeded", StartTs: start, EndTs: end},
+			{Name: "transcript", Filename: "abc.en.vtt", Status: "skipped", Err: nil, StartTs: start, EndTs: end},
+		},
+	}
+	if err := WriteIndex(data); err != nil {
+		t.Fatalf("WriteIndex: %v", err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, IndexFile))
+	var got linkJSON
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if got.Latest["youtube_metadata"] != "abc.info.json" {
+		t.Errorf("latest.youtube_metadata = %q, want abc.info.json", got.Latest["youtube_metadata"])
+	}
+	if got.Latest["transcript"] != "abc.en.vtt" {
+		t.Errorf("latest.transcript = %q, want abc.en.vtt", got.Latest["transcript"])
+	}
+	if h, ok := got.History["transcript"]; !ok || len(h) != 1 || h[0].Status != "skipped" {
+		t.Errorf("history.transcript = %v, want one skipped entry", got.History["transcript"])
+	}
+	// In-process extractor with nil Cmd must still get a non-nil list (ArchiveBox schema).
+	if h := got.History["transcript"]; h[0].Cmd == nil {
+		t.Error("history.transcript.cmd = nil, want non-nil list")
+	}
+	if dom := got.History["dom"]; len(dom) != 1 || dom[0].Cmd[0] != "wget" {
+		t.Errorf("history.dom = %v, want wget cmd", got.History["dom"])
 	}
 }
 
