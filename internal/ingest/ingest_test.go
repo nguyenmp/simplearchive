@@ -39,13 +39,14 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 		t.Errorf("title = %q, want Example", res.Title)
 	}
 
-	// DB row is marked succeeded.
-	var status, title string
-	if err := db.QueryRow("SELECT status, title FROM snapshots WHERE timestamp = ?", res.Timestamp).Scan(&status, &title); err != nil {
+	// The snapshot's title is recorded (a snapshot has no stored status; its
+	// succeeded state is derived from its extractor_runs).
+	var title string
+	if err := db.QueryRow("SELECT title FROM snapshots WHERE timestamp = ?", res.Timestamp).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if status != "succeeded" {
-		t.Errorf("status = %q, want succeeded", status)
+	if title != "Example" {
+		t.Errorf("title = %q, want Example", title)
 	}
 
 	// On-disk outputs exist.
@@ -100,7 +101,7 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 	}
 }
 
-func TestAdd_domFailure_marksFailed(t *testing.T) {
+func TestAdd_domFailure_recordsFailedRun(t *testing.T) {
 	t.Parallel()
 	db, err := meta.Open(context.Background(), ":memory:")
 	if err != nil {
@@ -114,14 +115,11 @@ func TestAdd_domFailure_marksFailed(t *testing.T) {
 		t.Fatal("Add on unreachable URL returned nil error")
 	}
 
-	// Exactly one snapshot row, marked failed (not stuck in pending).
-	var status string
+	// Exactly one snapshot row; it has no stored status, so the failed state
+	// is read from its extractor_runs.
 	var snapshotID int64
-	if err := db.QueryRow("SELECT status, id FROM snapshots").Scan(&status, &snapshotID); err != nil {
+	if err := db.QueryRow("SELECT id FROM snapshots").Scan(&snapshotID); err != nil {
 		t.Fatalf("query: %v", err)
-	}
-	if status != "failed" {
-		t.Fatalf("status = %q, want failed", status)
 	}
 
 	// Only the primary DOM run was recorded (best-effort extractors did not run).

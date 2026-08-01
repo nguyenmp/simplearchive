@@ -9,16 +9,16 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/archive"
 )
 
-// CreateSnapshot inserts a new snapshot row in the "pending" state and returns
-// the new snapshot's surrogate id. The caller already holds the timestamp it
-// passed in (the ArchiveBox directory name); the id is the foreign key target
-// used by extractor_runs.
+// CreateSnapshot inserts a new snapshot row and returns the new snapshot's
+// surrogate id. The caller already holds the timestamp it passed in (the
+// ArchiveBox directory name); the id is the foreign key target used by
+// extractor_runs. A snapshot has no stored status: its state is derived from
+// its extractor_runs (see the Deferred milestone).
 func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, error) {
 	now := time.Now().UnixMicro()
 	res, err := d.ExecContext(ctx, `
-		INSERT INTO snapshots
-		    (timestamp, url, title, status, is_archived, created_at, updated_at)
-		VALUES (?, ?, NULL, 'pending', 0, ?, ?)`,
+		INSERT INTO snapshots (timestamp, url, title, created_at, updated_at)
+		VALUES (?, ?, NULL, ?, ?)`,
 		ts, url, now, now)
 	if err != nil {
 		return 0, fmt.Errorf("meta.CreateSnapshot: insert: %w", err)
@@ -38,10 +38,11 @@ type execer interface {
 
 // UpsertSnapshot inserts or refreshes a snapshot row from an on-disk index.json
 // entry. It is the import path's counterpart to the Create/Update pair used by
-// 'add': an existing row (matched by timestamp) has its url, title, is_archived,
-// status, and updated_at refreshed, while created_at is preserved; a new row is
-// inserted with created_at = updated_at = the snapshot's own timestamp. This
-// makes 'simplearchive import' idempotent and safe to re-run.
+// 'add': an existing row (matched by timestamp) has its url, title, and
+// updated_at refreshed, while created_at is preserved; a new row is inserted
+// with created_at = updated_at = the snapshot's own timestamp. This makes
+// 'simplearchive import' idempotent and safe to re-run. A snapshot has no
+// stored status; imported snapshots (no extractor_runs) derive to succeeded.
 func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
 	if err := upsertSnapshot(ctx, d.DB, e); err != nil {
 		return fmt.Errorf("meta.UpsertSnapshot: %w", err)
@@ -63,47 +64,21 @@ func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
 	if e.Title != "" {
 		titleArg = e.Title
 	}
-	isArchived := 0
-	if e.IsArchived {
-		isArchived = 1
-	}
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO snapshots (timestamp, url, title, status, is_archived, created_at, updated_at)
-		VALUES (?, ?, ?, 'succeeded', ?, ?, ?)
+		INSERT INTO snapshots (timestamp, url, title, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(timestamp) DO UPDATE SET
 			url = excluded.url,
 			title = excluded.title,
-			is_archived = excluded.is_archived,
-			status = excluded.status,
 			updated_at = excluded.updated_at`,
-		e.Timestamp, e.URL, titleArg, isArchived, e.Timestamp, e.Timestamp)
+		e.Timestamp, e.URL, titleArg, e.Timestamp, e.Timestamp)
 	return err
 }
 
-// MarkSnapshotFailed sets a snapshot's status to 'failed' (leaving is_archived
-// unchanged) and bumps updated_at. It is used when the primary DOM extractor
-// fails so the snapshot is not left stuck in 'pending'.
-func (d *DB) MarkSnapshotFailed(ctx context.Context, ts int64) error {
-	now := time.Now().UnixMicro()
-	res, err := d.ExecContext(ctx, `
-		UPDATE snapshots
-		   SET status = 'failed', updated_at = ?
-		 WHERE timestamp = ?`, now, ts)
-	if err != nil {
-		return fmt.Errorf("meta.MarkSnapshotFailed: update: %w", err)
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("meta.MarkSnapshotFailed: rows affected: %w", err)
-	}
-	if affected != 1 {
-		return fmt.Errorf("meta.MarkSnapshotFailed: no row for timestamp %d", ts)
-	}
-	return nil
-}
-
-// UpdateSnapshot marks a snapshot as successfully archived, recording its title.
-// A null title is stored when title is the empty string.
+// UpdateSnapshot records a snapshot's title after archiving, bumping updated_at.
+// A null title is stored when title is the empty string. It returns an error if
+// no row matches the timestamp. Snapshot status is not stored; it is derived
+// from the snapshot's extractor_runs.
 func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
 	now := time.Now().UnixMicro()
 	var titleArg any
@@ -112,7 +87,7 @@ func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
 	}
 	res, err := d.ExecContext(ctx, `
 		UPDATE snapshots
-		   SET status = 'succeeded', is_archived = 1, title = ?, updated_at = ?
+		   SET title = ?, updated_at = ?
 		 WHERE timestamp = ?`,
 		titleArg, now, ts)
 	if err != nil {

@@ -10,15 +10,15 @@ import (
 // Snapshot is the in-memory representation of a snapshots row. Title is the
 // empty string when the column is NULL. ID is the surrogate primary key used
 // by foreign keys; Timestamp is the ArchiveBox directory name / route key.
+// Snapshot status is not stored — it is derived from the snapshot's
+// extractor_runs (see the Deferred milestone).
 type Snapshot struct {
-	ID         int64
-	Timestamp  int64
-	URL        string
-	Title      string
-	Status     string
-	IsArchived bool
-	CreatedAt  int64
-	UpdatedAt  int64
+	ID        int64
+	Timestamp int64
+	URL       string
+	Title     string
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 // ErrNotFound is returned by GetSnapshot when no row matches the timestamp.
@@ -42,7 +42,7 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 	}
 
 	rows, err := d.QueryContext(ctx, `
-		SELECT id, timestamp, url, COALESCE(title, ''), status, is_archived, created_at, updated_at
+		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		ORDER BY timestamp DESC
 		LIMIT ? OFFSET ?`, limit, offset)
@@ -54,11 +54,9 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 	out := make([]Snapshot, 0, limit)
 	for rows.Next() {
 		var s Snapshot
-		var isArchived int
-		if err := rows.Scan(&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.Status, &isArchived, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("meta.ListSnapshots: scan: %w", err)
 		}
-		s.IsArchived = isArchived != 0
 		out = append(out, s)
 	}
 	if err := rows.Err(); err != nil {
@@ -71,18 +69,16 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 // ErrNotFound when no row matches.
 func (d *DB) GetSnapshot(ctx context.Context, ts int64) (Snapshot, error) {
 	var s Snapshot
-	var isArchived int
 	err := d.QueryRowContext(ctx, `
-		SELECT id, timestamp, url, COALESCE(title, ''), status, is_archived, created_at, updated_at
+		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		WHERE timestamp = ?`, ts).Scan(
-		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.Status, &isArchived, &s.CreatedAt, &s.UpdatedAt)
+		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Snapshot{}, ErrNotFound
 		}
 		return Snapshot{}, fmt.Errorf("meta.GetSnapshot: %w", err)
 	}
-	s.IsArchived = isArchived != 0
 	return s, nil
 }

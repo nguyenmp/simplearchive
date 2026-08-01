@@ -18,7 +18,6 @@
 				<th class="py-2 pr-4">Timestamp</th>
 				<th class="py-2 pr-4">Title</th>
 				<th class="py-2 pr-4">URL</th>
-				<th class="py-2">Status</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -29,7 +28,6 @@
 				</td>
 				<td class="py-2 pr-4">{{if .Title}}{{.Title}}{{else}}<span class="text-gray-400">untitled</span>{{end}}</td>
 				<td class="py-2 pr-4 truncate max-w-xs text-gray-600">{{.URL}}</td>
-				<td class="py-2">{{.Status}}</td>
 			</tr>
 		{{end}}
 		</tbody>

@@ -191,7 +191,7 @@ M3 — Richer extractors
 M3.5 — Worker split (deferred until inline archiving is too slow)
 - [x] snapshots surrogate id PK (timestamp demoted to unique).
 - [x] Reshape extractor_runs to per-extractor + step_outputs (snapshot_id FK).
-- [ ] Drop snapshots.status + is_archived (derive from per-step state).
+- [x] Drop snapshots.status + is_archived (derive from per-step state).
 - [ ] add enqueues pending extractor_runs; worker claims a snapshot and runs its steps independently, rebuilding index.json per step.
 - [ ] simplearchive add --wait blocks + streams step logs (preserves sync UX).
 

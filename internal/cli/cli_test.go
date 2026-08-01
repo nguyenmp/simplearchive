@@ -79,12 +79,9 @@ func TestRun_add_archivesSnapshot(t *testing.T) {
 		t.Fatalf("stdout = %q, want archived summary", out.String())
 	}
 
-	var status, tsStr, title string
-	if err := db.QueryRow("SELECT status, printf('%d', timestamp), title FROM snapshots WHERE url = ?", srv.URL).Scan(&status, &tsStr, &title); err != nil {
+	var tsStr, title string
+	if err := db.QueryRow("SELECT printf('%d', timestamp), title FROM snapshots WHERE url = ?", srv.URL).Scan(&tsStr, &title); err != nil {
 		t.Fatalf("query snapshot: %v", err)
-	}
-	if status != "succeeded" {
-		t.Fatalf("status = %q, want succeeded", status)
 	}
 	if title != "Example" {
 		t.Fatalf("title = %q, want Example", title)

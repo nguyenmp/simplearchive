@@ -11,12 +11,6 @@
 		<div><dt class="inline font-semibold">URL:</dt>
 			<dd class="inline ml-2"><a href="{{.Snapshot.URL}}" class="text-blue-600 hover:underline break-all">{{.Snapshot.URL}}</a></dd>
 		</div>
-		<div><dt class="inline font-semibold">Status:</dt>
-			<dd class="inline ml-2">{{.Snapshot.Status}}</dd>
-		</div>
-		<div><dt class="inline font-semibold">Archived:</dt>
-			<dd class="inline ml-2">{{if .Snapshot.IsArchived}}yes{{else}}no{{end}}</dd>
-		</div>
 		<div><dt class="inline font-semibold">Created:</dt>
 			<dd class="inline ml-2">{{formatTimestamp .Snapshot.CreatedAt}}</dd>
 		</div>

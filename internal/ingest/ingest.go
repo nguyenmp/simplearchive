@@ -65,14 +65,12 @@ func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, err
 	pipeline := defaultPipeline()
 	primary := pipeline[0]
 
-	// Primary DOM fetch is fatal: on failure, record the run, mark the snapshot
-	// failed, and abort (no best-effort extractors run, no index.json).
+	// Primary DOM fetch is fatal: on failure, record the run and abort (no
+	// best-effort extractors run, no index.json). The snapshot has no stored
+	// status; its failed state is derived from the failed wget run.
 	pSteps, err := primary.Run(ctx, url, dir)
 	recordRuns(ctx, db, snapshotID, primary.Name(), pSteps)
 	if err != nil {
-		if ferr := db.MarkSnapshotFailed(ctx, ts); ferr != nil {
-			slog.Warn("ingest: mark snapshot failed", "err", ferr)
-		}
 		return Result{}, fmt.Errorf("ingest.Add: %s: %w", primary.Name(), err)
 	}
 	steps := append([]extractors.Step(nil), pSteps...)

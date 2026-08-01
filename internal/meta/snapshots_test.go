@@ -7,7 +7,7 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/archive"
 )
 
-func TestCreateSnapshot_insertsPendingRow(t *testing.T) {
+func TestCreateSnapshot_insertsRow(t *testing.T) {
 	t.Parallel()
 	db, err := Open(context.Background(), ":memory:")
 	if err != nil {
@@ -23,26 +23,23 @@ func TestCreateSnapshot_insertsPendingRow(t *testing.T) {
 		t.Fatal("CreateSnapshot returned id 0")
 	}
 
-	var url, status string
-	var isArchived int
+	var url string
 	err = db.QueryRowContext(context.Background(),
-		"SELECT url, status, is_archived FROM snapshots WHERE timestamp = ?", 1700000000000000,
-	).Scan(&url, &status, &isArchived)
+		"SELECT url FROM snapshots WHERE timestamp = ?", 1700000000000000,
+	).Scan(&url)
 	if err != nil {
 		t.Fatalf("query inserted row: %v", err)
 	}
 	if url != "https://example.com" {
 		t.Errorf("url = %q, want https://example.com", url)
 	}
-	if status != "pending" {
-		t.Errorf("status = %q, want pending", status)
-	}
-	if isArchived != 0 {
-		t.Errorf("is_archived = %d, want 0", isArchived)
+	// A snapshot has no stored status; it derives from its extractor_runs.
+	if _, err := db.Exec("SELECT status FROM snapshots"); err == nil {
+		t.Errorf("snapshots.status column should not exist")
 	}
 }
 
-func TestUpdateSnapshot_marksSucceeded(t *testing.T) {
+func TestUpdateSnapshot_setsTitle(t *testing.T) {
 	t.Parallel()
 	db, err := Open(context.Background(), ":memory:")
 	if err != nil {
@@ -58,21 +55,14 @@ func TestUpdateSnapshot_marksSucceeded(t *testing.T) {
 		t.Fatalf("UpdateSnapshot: %v", err)
 	}
 
-	var status, title any
-	var isArchived int
+	var title any
 	if err := db.QueryRowContext(context.Background(),
-		"SELECT status, title, is_archived FROM snapshots WHERE timestamp = ?", ts,
-	).Scan(&status, &title, &isArchived); err != nil {
+		"SELECT title FROM snapshots WHERE timestamp = ?", ts,
+	).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
-	}
-	if status != "succeeded" {
-		t.Errorf("status = %v, want succeeded", status)
 	}
 	if title != "Example" {
 		t.Errorf("title = %v, want Example", title)
-	}
-	if isArchived != 1 {
-		t.Errorf("is_archived = %d, want 1", isArchived)
 	}
 }
 
@@ -133,12 +123,12 @@ func TestUpsertSnapshot_insertsNewRow(t *testing.T) {
 		t.Fatalf("UpsertSnapshot: %v", err)
 	}
 
-	var url, title, status string
-	var isArchived, createdAt, updatedAt int64
+	var url, title string
+	var createdAt, updatedAt int64
 	if err := db.QueryRowContext(context.Background(),
-		"SELECT url, title, status, is_archived, created_at, updated_at FROM snapshots WHERE timestamp = ?",
+		"SELECT url, title, created_at, updated_at FROM snapshots WHERE timestamp = ?",
 		e.Timestamp,
-	).Scan(&url, &title, &status, &isArchived, &createdAt, &updatedAt); err != nil {
+	).Scan(&url, &title, &createdAt, &updatedAt); err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if url != "https://example.com" {
@@ -146,12 +136,6 @@ func TestUpsertSnapshot_insertsNewRow(t *testing.T) {
 	}
 	if title != "Example" {
 		t.Errorf("title = %q, want Example", title)
-	}
-	if status != "succeeded" {
-		t.Errorf("status = %q, want succeeded", status)
-	}
-	if isArchived != 1 {
-		t.Errorf("is_archived = %d, want 1", isArchived)
 	}
 	if createdAt != e.Timestamp {
 		t.Errorf("created_at = %d, want %d", createdAt, e.Timestamp)

@@ -49,12 +49,6 @@ func TestGetSnapshot_found(t *testing.T) {
 	if s.Title != "Example" {
 		t.Errorf("title = %q, want Example", s.Title)
 	}
-	if s.Status != "succeeded" {
-		t.Errorf("status = %q, want succeeded", s.Status)
-	}
-	if !s.IsArchived {
-		t.Errorf("is_archived = false, want true")
-	}
 }
 
 func TestGetSnapshot_nullTitleIsEmpty(t *testing.T) {
@@ -76,9 +70,6 @@ func TestGetSnapshot_nullTitleIsEmpty(t *testing.T) {
 	}
 	if s.Title != "" {
 		t.Errorf("title = %q, want empty string for NULL", s.Title)
-	}
-	if s.IsArchived {
-		t.Errorf("is_archived = true, want false for pending snapshot")
 	}
 }
 

@@ -71,8 +71,8 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 4 {
-		t.Fatalf("user_version = %d, want 4", got)
+	if got := userVersion(t, db); got != 5 {
+		t.Fatalf("user_version = %d, want 5", got)
 	}
 	if _, err := db.Exec("SELECT 1 FROM snapshots LIMIT 1"); err != nil {
 		t.Fatalf("snapshots table not queryable after fresh open: %v", err)
@@ -82,6 +82,13 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	}
 	if _, err := db.Exec("SELECT 1 FROM step_outputs LIMIT 1"); err != nil {
 		t.Fatalf("step_outputs table not queryable after fresh open: %v", err)
+	}
+	// v5 dropped snapshot-level status and is_archived.
+	if _, err := db.Exec("SELECT status FROM snapshots LIMIT 1"); err == nil {
+		t.Errorf("snapshots.status column should have been dropped")
+	}
+	if _, err := db.Exec("SELECT is_archived FROM snapshots LIMIT 1"); err == nil {
+		t.Errorf("snapshots.is_archived column should have been dropped")
 	}
 	// v3 added a surrogate id primary key to snapshots.
 	var id int64
@@ -107,8 +114,8 @@ func TestMigrate_idempotent(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 4 {
-		t.Fatalf("user_version after reopen = %d, want 4", got)
+	if got := userVersion(t, db); got != 5 {
+		t.Fatalf("user_version after reopen = %d, want 5", got)
 	}
 }
 
@@ -181,8 +188,8 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 4 {
-		t.Fatalf("user_version = %d, want 4", got)
+	if got := userVersion(t, db); got != 5 {
+		t.Fatalf("user_version = %d, want 5", got)
 	}
 
 	var id int64
@@ -219,8 +226,8 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 4 {
-		t.Fatalf("user_version = %d, want 4", got)
+	if got := userVersion(t, db); got != 5 {
+		t.Fatalf("user_version = %d, want 5", got)
 	}
 
 	// One per-extractor run, grouped from the legacy "dom" output under "wget".
