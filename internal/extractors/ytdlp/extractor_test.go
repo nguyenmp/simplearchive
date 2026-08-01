@@ -39,7 +39,7 @@ func TestArgv(t *testing.T) {
 	got := argv("yt-dlp", "https://youtu.be/abc")
 	want := []string{
 		"yt-dlp",
-		"--write-info-json", "--write-subs", "--sub-langs", "en", "--skip-download",
+		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
 		"--output", "%(id)s",
 		"https://youtu.be/abc",

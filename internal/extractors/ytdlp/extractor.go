@@ -112,7 +112,7 @@ func isVideoURL(pageURL string) bool {
 func argv(bin, pageURL string) []string {
 	return []string{
 		bin,
-		"--write-info-json", "--write-subs", "--sub-langs", "en", "--skip-download",
+		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
 		"--output", "%(id)s",
 		pageURL,
