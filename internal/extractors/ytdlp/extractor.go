@@ -1,0 +1,121 @@
+// Package ytdlp wraps the yt-dlp command-line tool to archive a video URL's
+// metadata and transcript (no media). It is host-gated: non-video URLs are
+// skipped so the rest of the pipeline is not polluted with yt-dlp failures.
+package ytdlp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/nguyenmp/simplearchive/internal/extractors"
+)
+
+// videoHosts is the set of hosts yt-dlp is run for. Other hosts skip the
+// extractor entirely. Add more as needed.
+var videoHosts = map[string]bool{
+	"youtube.com":     true,
+	"www.youtube.com": true,
+	"youtu.be":        true,
+	"m.youtube.com":   true,
+	"vimeo.com":       true,
+	"www.vimeo.com":   true,
+}
+
+// Extractor archives a video URL's metadata and transcript via yt-dlp.
+type Extractor struct {
+	// Bin is the yt-dlp binary path; it defaults to "yt-dlp" when empty. Tests
+	// override it with a fake script.
+	Bin string
+}
+
+// Name returns the extractor registry identifier.
+func (Extractor) Name() string { return "ytdlp" }
+
+func (e Extractor) bin() string {
+	if e.Bin != "" {
+		return e.Bin
+	}
+	return "yt-dlp"
+}
+
+// Run archives url's metadata and transcript into dir. Non-video URLs return
+// ErrSkipped with no steps. A failed metadata fetch returns the steps recorded
+// so far alongside the error (best-effort).
+func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
+	if !isVideoURL(pageURL) {
+		return nil, extractors.ErrSkipped
+	}
+
+	start := time.Now()
+	argv := argv(e.bin(), dir, pageURL)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Dir = dir
+	stderr := &strings.Builder{}
+	cmd.Stderr = stderr
+	runErr := cmd.Run()
+	end := time.Now()
+
+	infoFiles, _ := filepath.Glob(filepath.Join(dir, "*.info.json"))
+	vttFiles, _ := filepath.Glob(filepath.Join(dir, "*.vtt"))
+
+	cmdStr := argv
+	steps := make([]extractors.Step, 0, 2)
+
+	meta := extractors.Step{Name: "youtube_metadata", Cmd: cmdStr, StartTs: start, EndTs: end}
+	if len(infoFiles) > 0 {
+		meta.Filename = filepath.Base(infoFiles[0])
+		meta.Status = extractors.StatusSucceeded
+	} else {
+		meta.Status = extractors.StatusFailed
+		if runErr != nil {
+			meta.Err = fmt.Errorf("ytdlp: %w: %s", runErr, strings.TrimSpace(stderr.String()))
+		} else {
+			meta.Err = errors.New("ytdlp: no info.json produced")
+		}
+	}
+	steps = append(steps, meta)
+
+	trans := extractors.Step{Name: "transcript", Cmd: cmdStr, StartTs: start, EndTs: end}
+	if len(vttFiles) > 0 {
+		trans.Filename = filepath.Base(vttFiles[0])
+		trans.Status = extractors.StatusSucceeded
+	} else if meta.Status == extractors.StatusSucceeded {
+		trans.Status = extractors.StatusSkipped
+		trans.Err = errors.New("no transcript available")
+	} else {
+		trans.Status = extractors.StatusFailed
+		trans.Err = meta.Err
+	}
+	steps = append(steps, trans)
+
+	if meta.Status == extractors.StatusFailed {
+		return steps, meta.Err
+	}
+	return steps, nil
+}
+
+// isVideoURL reports whether pageURL's host is a known video site.
+func isVideoURL(pageURL string) bool {
+	u, err := url.Parse(pageURL)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return videoHosts[u.Hostname()]
+}
+
+// argv builds the yt-dlp invocation recorded in index.json and run by Run.
+func argv(bin, dir, pageURL string) []string {
+	return []string{
+		bin,
+		"--write-info-json", "--write-subs", "--sub-langs", "en", "--skip-download",
+		"--no-progress", "--no-warnings",
+		"--output", filepath.Join(dir, "%(id)s"),
+		pageURL,
+	}
+}
