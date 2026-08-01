@@ -39,8 +39,8 @@ type Result struct {
 
 // defaultPipeline is the ordered list of extractors run for every URL. Steps
 // are independent: no step is fatal to the others, and the order only affects
-// display (insertion/id order) and that the DOM fetch runs first so the title
-// is available for index.json.
+// display (insertion/id order). The DOM fetch runs first so that its title is
+// available for index.json as soon as the first run finishes.
 func defaultPipeline() []extractors.Extractor {
 	return []extractors.Extractor{
 		wget.DOMExtractor{},
@@ -106,9 +106,11 @@ func RunNext(ctx context.Context, db *meta.DB, archiveRoot string) (Result, bool
 // (status "running") by ClaimNextSnapshot: it executes each non-terminal run in
 // id order, starting a pending run (pending -> running, started_at stamped) the
 // instant before it runs so that "running" tracks the extractor currently
-// executing rather than every run claimed for the snapshot. It records outputs,
-// rebuilds index.json per extractor, and sets the title when wget succeeds. It
-// is the shared core used by RunNext (the serve worker).
+// executing rather than every run claimed for the snapshot. After each run it
+// parses the best available title, persists it, and rebuilds index.json before
+// marking the run done — so index.json always reflects the snapshot's current
+// state (including title) under the snapshot lock. It is the shared core used
+// by RunNext (the serve worker).
 func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, snapshotID int64) (Result, error) {
 	snap, err := db.GetSnapshotByID(ctx, snapshotID)
 	if err != nil {
@@ -137,31 +139,33 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 			r.StartedAt = nowMicros()
 			r.Status = extractors.StatusRunning
 		}
-		runOne(ctx, db, registry, r, snap, dir)
+		status, errMsg := runOne(ctx, db, registry, r, snap, dir)
+		title := parseTitle(dir)
+		if title != "" && title != snap.Title {
+			if err := db.UpdateSnapshot(ctx, snap.Timestamp, title); err != nil {
+				slog.Warn("ingest: update title", "err", err)
+			}
+			snap.Title = title
+		}
 		rebuildIndex(ctx, db, dir, snap)
+		if err := db.FinishRun(ctx, r.ID, status, nowMicros(), errMsg); err != nil {
+			slog.Warn("ingest: finish run", "extractor", r.Extractor, "err", err)
+		}
 	}
 
-	title := parseTitle(dir)
-	if title != "" {
-		if err := db.UpdateSnapshot(ctx, snap.Timestamp, title); err != nil {
-			slog.Warn("ingest: update title", "err", err)
-		}
-		snap.Title = title
-		rebuildIndex(ctx, db, dir, snap)
-	}
 	return Result{SnapshotID: snapshotID, Timestamp: snap.Timestamp, Title: snap.Title, Dir: dir}, nil
 }
 
-// runOne executes a single extractor run, records its outputs, and marks the
-// run terminal. A skipped extractor (ErrSkipped) records a "skipped" run with
-// no outputs; other failures record a "failed" run with the error. Failures
-// are logged at warn but never abort the snapshot.
-func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Extractor, r *meta.ExtractorRun, snap meta.Snapshot, dir string) {
+// runOne executes a single extractor run and records its step outputs into the
+// DB. It returns the run's terminal status and (for failures) an error message;
+// the caller is responsible for calling FinishRun after serializing index.json.
+// A skipped extractor (ErrSkipped) records no outputs; other failures record
+// the error. Failures are logged at warn but never abort the snapshot.
+func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Extractor, r *meta.ExtractorRun, snap meta.Snapshot, dir string) (string, string) {
 	ex, ok := registry[r.Extractor]
 	if !ok {
 		slog.Warn("ingest: no extractor registered", "extractor", r.Extractor)
-		_ = db.FinishRun(ctx, r.ID, extractors.StatusFailed, nowMicros(), "no extractor registered for "+r.Extractor)
-		return
+		return extractors.StatusFailed, "no extractor registered for " + r.Extractor
 	}
 	steps, runErr := ex.Run(ctx, snap.URL, dir)
 	if runErr != nil && !errors.Is(runErr, extractors.ErrSkipped) {
@@ -198,9 +202,7 @@ func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Ext
 			slog.Warn("ingest: record step output", "extractor", ex.Name(), "step", s.Name, "err", err)
 		}
 	}
-	if err := db.FinishRun(ctx, r.ID, status, nowMicros(), errMsg); err != nil {
-		slog.Warn("ingest: finish run", "extractor", ex.Name(), "err", err)
-	}
+	return status, errMsg
 }
 
 // aggregateRunStatus derives an extractor run's status from its steps: failed
