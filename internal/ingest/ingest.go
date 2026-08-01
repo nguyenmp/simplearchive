@@ -102,10 +102,13 @@ func RunNext(ctx context.Context, db *meta.DB, archiveRoot string) (Result, bool
 	return res, true, nil
 }
 
-// runClaimedSnapshot runs a snapshot whose runs are already claimed (status
-// "running"): it executes each running run, records outputs, rebuilds
-// index.json per extractor, and sets the title when wget succeeds. It is the
-// shared core used by RunNext (the serve worker).
+// runClaimedSnapshot runs a snapshot whose oldest pending run has been claimed
+// (status "running") by ClaimNextSnapshot: it executes each non-terminal run in
+// id order, starting a pending run (pending -> running, started_at stamped) the
+// instant before it runs so that "running" tracks the extractor currently
+// executing rather than every run claimed for the snapshot. It records outputs,
+// rebuilds index.json per extractor, and sets the title when wget succeeds. It
+// is the shared core used by RunNext (the serve worker).
 func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, snapshotID int64) (Result, error) {
 	snap, err := db.GetSnapshotByID(ctx, snapshotID)
 	if err != nil {
@@ -123,8 +126,16 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 	registry := extractorByName()
 	for i := range runs {
 		r := &runs[i]
-		if r.Status != extractors.StatusRunning {
+		if r.Status != extractors.StatusPending && r.Status != extractors.StatusRunning {
 			continue // already terminal (e.g. a prior partial run)
+		}
+		if r.Status == extractors.StatusPending {
+			if err := db.StartRun(ctx, r.ID); err != nil {
+				slog.Warn("ingest: start run", "extractor", r.Extractor, "err", err)
+				continue
+			}
+			r.StartedAt = nowMicros()
+			r.Status = extractors.StatusRunning
 		}
 		runOne(ctx, db, registry, r, snap, dir)
 		rebuildIndex(ctx, db, dir, snap)

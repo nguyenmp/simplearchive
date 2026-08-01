@@ -32,10 +32,19 @@ func (d *DB) InsertPendingRuns(ctx context.Context, snapshotID int64, extractors
 }
 
 // ClaimNextSnapshot finds a snapshot that has pending runs and no running runs
-// (so it is not already being worked), transitions that snapshot's pending
-// runs to "running", and returns its id. ok is false when no snapshot is
-// waiting. This is the worker loop's claim; like ClaimSnapshotRuns it relies on
-// the single-writer connection for atomicity.
+// (so it is not already being worked), acquires the snapshot-level lock by
+// transitioning that snapshot's oldest pending run to "running", and returns
+// the snapshot id. ok is false when no snapshot is waiting.
+//
+// The lock is the presence of a "running" run: the NOT EXISTS clause above
+// excludes any snapshot that already has a running run, so once a worker claims
+// a snapshot (one run is running) no other claim will pick it up. Only the
+// oldest pending run is flipped here; the worker starts each remaining pending
+// run individually right before it executes (see ingest.runClaimedSnapshot), so
+// "running" means "currently executing" rather than merely "claimed", and a
+// crash between runs leaves the unstarted runs pending (reclaimable) rather than
+// stranded in "running". This relies on the single-writer connection for
+// atomicity.
 func (d *DB) ClaimNextSnapshot(ctx context.Context) (int64, bool, error) {
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
@@ -66,13 +75,42 @@ func (d *DB) ClaimNextSnapshot(ctx context.Context) (int64, bool, error) {
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE extractor_runs
 		   SET status = 'running', started_at = ?
-		 WHERE snapshot_id = ? AND status = 'pending'`, now, snapshotID); err != nil {
+		 WHERE id = (
+			SELECT id FROM extractor_runs
+			WHERE snapshot_id = ? AND status = 'pending'
+			ORDER BY id LIMIT 1
+		 )`, now, snapshotID); err != nil {
 		return 0, false, fmt.Errorf("meta.ClaimNextSnapshot: claim: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, false, fmt.Errorf("meta.ClaimNextSnapshot: commit: %w", err)
 	}
 	return snapshotID, true, nil
+}
+
+// StartRun transitions a single pending run to "running" and stamps its
+// started_at, right before the worker executes it. It is a no-op-style guard:
+// only a run still "pending" is flipped (rows affected == 1), so a run already
+// claimed by ClaimNextSnapshot (already "running") or already terminal is left
+// untouched and the caller proceeds. This is what makes "running" mean
+// "currently executing" rather than "claimed by the snapshot lock".
+func (d *DB) StartRun(ctx context.Context, runID int64) error {
+	now := time.Now().UnixMicro()
+	res, err := d.ExecContext(ctx, `
+		UPDATE extractor_runs
+		   SET status = 'running', started_at = ?
+		 WHERE id = ? AND status = 'pending'`, now, runID)
+	if err != nil {
+		return fmt.Errorf("meta.StartRun: update: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("meta.StartRun: rows affected: %w", err)
+	}
+	if n != 1 {
+		return fmt.Errorf("meta.StartRun: run %d not pending (rows affected %d)", runID, n)
+	}
+	return nil
 }
 
 // FinishRun marks a run terminal, recording its finished_at and (optionally)
