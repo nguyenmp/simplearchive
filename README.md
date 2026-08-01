@@ -54,7 +54,7 @@ docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test -tags chromedp 
 docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run -tags chromedp .
 ```
 
-At runtime the extractor still skips (records no steps) if the `chromium` binary is not on `PATH`, so the same binary runs with or without the tag. Network restriction for the browser process is deferred to container-level isolation (see M3).
+At runtime the extractor still skips (records no steps) if the `chromium` binary is not on `PATH`, so the same binary runs with or without the tag. Network restriction for the browser process is deferred to container-level isolation (see [Production deployment](#production-deployment)).
 
 I often have [the official ArchiveBox repo](https://github.com/ArchiveBox/ArchiveBox) checked out as a sibling as ~/ArchiveBoxOfficial/ for reference.
 
@@ -84,15 +84,31 @@ $ archivebox init
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 
-## Serving online
+## Production deployment
 
-`SERVE_ADDR` defaults to `127.0.0.1:8080`, which only listens on localhost — fine for local dev but not reachable from outside the host. To serve the dev container on the network (e.g. on a VPS, or to test from another machine on your LAN), bind all interfaces and publish the port:
+`SERVE_ADDR` defaults to `127.0.0.1:8080` (localhost only). For production behind a reverse proxy, bind all interfaces so the proxy can reach it:
 
 ```
-docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run .
+docker run --rm -it -v "$PWD:/app" -w /app -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run .
 ```
 
-Then visit `http://<host-ip>:8080`. This exposes the server with no auth — only use on a trusted network or behind a reverse proxy (see M4).
+### Network isolation
+
+Run simplearchive on a dedicated Docker network that only the reverse proxy also joins, and don't publish its port — the proxy reaches it by container name. The proxy can route to simplearchive, but simplearchive can't resolve or route to any other container.
+
+```
+networks:
+  simplearchive_net:
+    driver: bridge
+
+services:
+  simplearchive:
+    networks: [simplearchive_net]
+  caddy:
+    networks: [default, simplearchive_net]
+```
+
+The server has no built-in auth; rely on the reverse proxy (basic auth or a trusted network) until M4.
 
 ## Tailwind CSS
 
@@ -125,7 +141,7 @@ M3 — Richer extractors
 - [x] obelisk extractor: single-file HTML (`singlefile.html`), in-process; wire into default list.
 - [x] yt-dlp extractor: metadata + transcript only (`--write-info-json --write-subs --skip-download`), host-gated to video sites; add standalone binary to Dockerfile.dev.
 - [x] chromedp extractor: screenshot + PDF + DOM, build-tagged (`-tags chromedp`) with a no-op stub when disabled and runtime binary-presence check; add `chromium` to Dockerfile.dev.
-- [ ] Revisit worker-isolation topology here. Network restriction for chromedp deferred to container-level isolation (TODO + design note).
+- [x] Revisit worker-isolation topology here. Network restriction for chromedp deferred to container-level isolation (see [Production deployment](#production-deployment)).
 
 M3.5 — Worker split (deferred until inline archiving is too slow)
 - [ ] Add queue_jobs + job_steps tables.
