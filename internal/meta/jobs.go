@@ -10,7 +10,7 @@ import (
 // InsertPendingRuns creates one "pending" extractor_runs row per extractor
 // name for a snapshot, establishing the work the worker will drain. Each row
 // has no started_at/finished_at yet (NULL). Runs are claimed (pending->running)
-// later by ClaimSnapshotRuns / ClaimNextSnapshot.
+// later by ClaimNextSnapshot.
 func (d *DB) InsertPendingRuns(ctx context.Context, snapshotID int64, extractors []string) error {
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
@@ -29,27 +29,6 @@ func (d *DB) InsertPendingRuns(ctx context.Context, snapshotID int64, extractors
 		return fmt.Errorf("meta.InsertPendingRuns: commit: %w", err)
 	}
 	return nil
-}
-
-// ClaimSnapshotRuns transitions all of a snapshot's pending runs to "running"
-// (setting started_at), claiming the snapshot for the caller. Returns the
-// number of rows transitioned; zero means another caller already claimed the
-// snapshot (or it has no pending runs). With a single DB writer (maxOpenConns
-// = 1) this is naturally atomic — no two callers run it concurrently.
-func (d *DB) ClaimSnapshotRuns(ctx context.Context, snapshotID int64) (int64, error) {
-	now := time.Now().UnixMicro()
-	res, err := d.ExecContext(ctx, `
-		UPDATE extractor_runs
-		   SET status = 'running', started_at = ?
-		 WHERE snapshot_id = ? AND status = 'pending'`, now, snapshotID)
-	if err != nil {
-		return 0, fmt.Errorf("meta.ClaimSnapshotRuns: update: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("meta.ClaimSnapshotRuns: rows affected: %w", err)
-	}
-	return n, nil
 }
 
 // ClaimNextSnapshot finds a snapshot that has pending runs and no running runs

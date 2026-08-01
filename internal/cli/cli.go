@@ -41,8 +41,6 @@ func (c *CLI) Run(ctx context.Context, args []string) int {
 
 	cmd, rest := args[0], args[1:]
 	switch cmd {
-	case "add":
-		return c.runAdd(ctx, rest)
 	case "import":
 		return c.runImport(ctx, rest)
 	case "serve":
@@ -60,7 +58,6 @@ func (c *CLI) Run(ctx context.Context, args []string) int {
 func (c *CLI) printUsage() {
 	fmt.Fprintln(c.Stderr, "usage: simplearchive <command> [args]")
 	fmt.Fprintln(c.Stderr, "commands:")
-	fmt.Fprintln(c.Stderr, "  add <url>   archive a single URL")
 	fmt.Fprintln(c.Stderr, "  import      scan archive/ and load snapshots into meta.db")
 	fmt.Fprintln(c.Stderr, "  serve       run the HTTP server (SERVE_ADDR, default 127.0.0.1:8080)")
 }

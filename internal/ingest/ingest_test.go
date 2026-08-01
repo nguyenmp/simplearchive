@@ -16,7 +16,7 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
-func TestAdd_archivesSnapshot(t *testing.T) {
+func TestEnqueue_RunNext_archivesSnapshot(t *testing.T) {
 	t.Parallel()
 	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -31,9 +31,19 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 	defer db.Close()
 
 	root := filepath.Join(t.TempDir(), "archive")
-	res, err := Add(context.Background(), db, root, srv.URL)
+	snapshotID, ts, err := Enqueue(context.Background(), db, srv.URL)
 	if err != nil {
-		t.Fatalf("Add: %v", err)
+		t.Fatalf("Enqueue: %v", err)
+	}
+	res, ran, err := RunNext(context.Background(), db, root)
+	if err != nil {
+		t.Fatalf("RunNext: %v", err)
+	}
+	if !ran {
+		t.Fatal("RunNext = ran=false, want true (queue not empty)")
+	}
+	if res.SnapshotID != snapshotID || res.Timestamp != ts {
+		t.Errorf("result = {SnapshotID:%d Timestamp:%d}, want {%d %d}", res.SnapshotID, res.Timestamp, snapshotID, ts)
 	}
 	if res.Title != "Example" {
 		t.Errorf("title = %q, want Example", res.Title)
@@ -101,7 +111,7 @@ func TestAdd_archivesSnapshot(t *testing.T) {
 	}
 }
 
-func TestAdd_domFailure_recordsFailedRun(t *testing.T) {
+func TestRunNext_domFailure_recordsFailedRun(t *testing.T) {
 	t.Parallel()
 	db, err := meta.Open(context.Background(), ":memory:")
 	if err != nil {
@@ -110,11 +120,21 @@ func TestAdd_domFailure_recordsFailedRun(t *testing.T) {
 	defer db.Close()
 
 	root := filepath.Join(t.TempDir(), "archive")
-	// Steps are independent (no primary-fatal): Add does not error when the DOM
-	// fetch fails — it runs every extractor and records per-step status.
-	res, err := Add(context.Background(), db, root, "http://127.0.0.1:1/no-such-port")
+	// Steps are independent (no primary-fatal): the DOM fetch failing does not
+	// abort the snapshot — every extractor runs and records per-step status.
+	snapshotID, _, err := Enqueue(context.Background(), db, "http://127.0.0.1:1/no-such-port")
 	if err != nil {
-		t.Fatalf("Add returned error %v; steps are independent and should not fail Add", err)
+		t.Fatalf("Enqueue: %v", err)
+	}
+	res, ran, err := RunNext(context.Background(), db, root)
+	if err != nil {
+		t.Fatalf("RunNext: %v", err)
+	}
+	if !ran {
+		t.Fatal("RunNext = ran=false, want true")
+	}
+	if res.SnapshotID != snapshotID {
+		t.Errorf("result SnapshotID = %d, want %d", res.SnapshotID, snapshotID)
 	}
 
 	runs, err := db.ListRunsBySnapshot(context.Background(), res.SnapshotID)
@@ -142,7 +162,7 @@ func TestAdd_domFailure_recordsFailedRun(t *testing.T) {
 	}
 }
 
-func TestEnqueue_thenRunSnapshot_drainsPendingRuns(t *testing.T) {
+func TestEnqueue_thenRunNext_drainsPendingRuns(t *testing.T) {
 	t.Parallel()
 	const body = "<html><head><title>Example</title></head><body>hi</body></html>"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -176,12 +196,15 @@ func TestEnqueue_thenRunSnapshot_drainsPendingRuns(t *testing.T) {
 		}
 	}
 
-	res, err := RunSnapshot(context.Background(), db, root, snapshotID)
+	res, ran, err := RunNext(context.Background(), db, root)
 	if err != nil {
-		t.Fatalf("RunSnapshot: %v", err)
+		t.Fatalf("RunNext: %v", err)
 	}
-	if res.Timestamp != ts {
-		t.Errorf("timestamp = %d, want %d", res.Timestamp, ts)
+	if !ran {
+		t.Fatal("RunNext = ran=false, want true (queue not empty)")
+	}
+	if res.SnapshotID != snapshotID || res.Timestamp != ts {
+		t.Errorf("result = {SnapshotID:%d Timestamp:%d}, want {%d %d}", res.SnapshotID, res.Timestamp, snapshotID, ts)
 	}
 	if res.Title != "Example" {
 		t.Errorf("title = %q, want Example", res.Title)
@@ -253,7 +276,7 @@ func TestRunNext_drainsQueueOneAtATime(t *testing.T) {
 
 	// RunNext claims and archives one snapshot per call, oldest first.
 	for i := 0; i < 2; i++ {
-		ran, err := RunNext(context.Background(), db, root)
+		_, ran, err := RunNext(context.Background(), db, root)
 		if err != nil {
 			t.Fatalf("RunNext %d: %v", i, err)
 		}
@@ -262,7 +285,7 @@ func TestRunNext_drainsQueueOneAtATime(t *testing.T) {
 		}
 	}
 	// Queue is now empty.
-	ran, err := RunNext(context.Background(), db, root)
+	_, ran, err := RunNext(context.Background(), db, root)
 	if err != nil {
 		t.Fatalf("RunNext drain: %v", err)
 	}

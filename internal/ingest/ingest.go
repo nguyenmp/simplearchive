@@ -1,10 +1,10 @@
 // Package ingest runs the archiving pipeline for a single URL. The pipeline is
 // modeled as a set of independent extractor steps persisted as pending
-// extractor_runs rows (Enqueue), then drained by RunSnapshot, which runs each
-// step, records its outputs, and rebuilds the per-snapshot index.json as each
-// extractor finishes. Steps are independent: no step is fatal to the others,
-// and a snapshot's state is derived from its steps (see the Deferred
-// milestone), not stored on the snapshot.
+// extractor_runs rows (Enqueue), then drained by the serve worker (RunNext),
+// which runs each step, records its outputs, and rebuilds the per-snapshot
+// index.json as each extractor finishes. Steps are independent: no step is
+// fatal to the others, and a snapshot's state is derived from its steps (see
+// the Deferred milestone), not stored on the snapshot.
 package ingest
 
 import (
@@ -83,53 +83,29 @@ func Enqueue(ctx context.Context, db *meta.DB, url string) (int64, int64, error)
 	return snapshotID, ts, nil
 }
 
-// RunSnapshot archives a snapshot: it claims the snapshot's pending runs
-// (pending->running), runs each independently, records its outputs, rebuilds
-// index.json as each extractor finishes, and records the title when the DOM
-// fetch (wget) succeeds. If the snapshot's runs were already claimed by
-// another caller (e.g. a serve worker), RunSnapshot waits for them to reach a
-// terminal state and returns the recorded result. It does not fail the
-// snapshot when a step fails — per-step status is the source of truth.
-// RunSnapshot archives a snapshot: it claims the snapshot's pending runs
-// (pending->running), runs each independently, records its outputs, rebuilds
-// index.json as each extractor finishes, and records the title when the DOM
-// fetch (wget) succeeds. If the snapshot's runs were already claimed by
-// another caller (e.g. a serve worker), RunSnapshot waits for them to reach a
-// terminal state and returns the recorded result. It does not fail the
-// snapshot when a step fails — per-step status is the source of truth.
-func RunSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, snapshotID int64) (Result, error) {
-	claimed, err := db.ClaimSnapshotRuns(ctx, snapshotID)
-	if err != nil {
-		return Result{}, fmt.Errorf("ingest.RunSnapshot: claim: %w", err)
-	}
-	if claimed == 0 {
-		// Another caller is already archiving this snapshot; wait for it.
-		return waitForSnapshot(ctx, db, archiveRoot, snapshotID)
-	}
-	return runClaimedSnapshot(ctx, db, archiveRoot, snapshotID)
-}
-
 // RunNext claims and archives one waiting snapshot (the worker loop's unit).
-// It returns ran=true when it archived a snapshot, false when no snapshot was
-// waiting. The caller loops, sleeping briefly between false results.
-func RunNext(ctx context.Context, db *meta.DB, archiveRoot string) (bool, error) {
+// It returns the archived Result and ran=true when it archived a snapshot, or
+// a zero Result and ran=false when no snapshot was waiting. The caller loops,
+// sleeping briefly between false results.
+func RunNext(ctx context.Context, db *meta.DB, archiveRoot string) (Result, bool, error) {
 	snapshotID, ok, err := db.ClaimNextSnapshot(ctx)
 	if err != nil {
-		return false, fmt.Errorf("ingest.RunNext: claim: %w", err)
+		return Result{}, false, fmt.Errorf("ingest.RunNext: claim: %w", err)
 	}
 	if !ok {
-		return false, nil
+		return Result{}, false, nil
 	}
-	if _, err := runClaimedSnapshot(ctx, db, archiveRoot, snapshotID); err != nil {
-		return true, fmt.Errorf("ingest.RunNext: run: %w", err)
+	res, err := runClaimedSnapshot(ctx, db, archiveRoot, snapshotID)
+	if err != nil {
+		return Result{}, true, fmt.Errorf("ingest.RunNext: run: %w", err)
 	}
-	return true, nil
+	return res, true, nil
 }
 
 // runClaimedSnapshot runs a snapshot whose runs are already claimed (status
 // "running"): it executes each running run, records outputs, rebuilds
 // index.json per extractor, and sets the title when wget succeeds. It is the
-// shared core used by RunSnapshot (inline add) and RunNext (serve worker).
+// shared core used by RunNext (the serve worker).
 func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, snapshotID int64) (Result, error) {
 	snap, err := db.GetSnapshotByID(ctx, snapshotID)
 	if err != nil {
@@ -287,53 +263,4 @@ func parseTitle(dir string) string {
 	return archive.ParseTitle(html)
 }
 
-// waitForSnapshot polls until the given snapshot's runs are all terminal (another
-// caller is archiving it), then returns the recorded result. It is the
-// fallback when RunSnapshot is asked to run a snapshot it did not claim.
-func waitForSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, snapshotID int64) (Result, error) {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		runs, err := db.ListRunsBySnapshot(ctx, snapshotID)
-		if err != nil {
-			return Result{}, fmt.Errorf("ingest.waitForSnapshot: list runs: %w", err)
-		}
-		if allTerminal(runs) {
-			snap, err := db.GetSnapshotByID(ctx, snapshotID)
-			if err != nil {
-				return Result{}, fmt.Errorf("ingest.waitForSnapshot: get snapshot: %w", err)
-			}
-			return Result{SnapshotID: snapshotID, Timestamp: snap.Timestamp, Title: snap.Title, Dir: archive.SnapshotDir(archiveRoot, snap.Timestamp)}, nil
-		}
-		select {
-		case <-ctx.Done():
-			return Result{}, ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
-func allTerminal(runs []meta.ExtractorRun) bool {
-	if len(runs) == 0 {
-		return false
-	}
-	for _, r := range runs {
-		if r.Status == extractors.StatusPending || r.Status == extractors.StatusRunning {
-			return false
-		}
-	}
-	return true
-}
-
 func nowMicros() int64 { return time.Now().UnixMicro() }
-
-// Add is the inline convenience used by the `add` CLI: it enqueues a URL and
-// runs its snapshot synchronously, returning the result. It blocks until the
-// snapshot is archived (by this call or, if one is running, by a serve worker).
-func Add(ctx context.Context, db *meta.DB, archiveRoot, url string) (Result, error) {
-	snapshotID, _, err := Enqueue(ctx, db, url)
-	if err != nil {
-		return Result{}, err
-	}
-	return RunSnapshot(ctx, db, archiveRoot, snapshotID)
-}
