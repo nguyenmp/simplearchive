@@ -1,6 +1,8 @@
 // Package subproc wraps os/exec to run subprocesses with structured start/end
-// logging via slog.Default(). Each Run logs a start (debug) and an end (info)
-// record carrying the command, exit code, duration, and captured stdout/stderr.
+// logging via slog. Each Run logs a start (debug) and an end (info) record
+// carrying the command, exit code, duration, and captured stdout/stderr.
+// Use Runner to inject a custom *slog.Logger; the top-level Run function uses
+// slog.Default() for backward compatibility.
 package subproc
 
 import (
@@ -28,12 +30,21 @@ type Result struct {
 	Duration time.Duration
 }
 
+// Runner executes subprocesses with an optional injected logger. If Logger is
+// nil, Run falls back to slog.Default().
+type Runner struct {
+	Logger *slog.Logger
+}
+
 // Run executes name with args, capturing stdout and stderr separately. dir may
 // be empty to run in the current directory. It logs the start (debug) and end
 // (info) of the subprocess. The returned error wraps the underlying exec error
 // with the trimmed stderr; Result is always returned alongside it.
-func Run(ctx context.Context, dir, name string, args ...string) (Result, error) {
-	log := slog.Default()
+func (r *Runner) Run(ctx context.Context, dir, name string, args ...string) (Result, error) {
+	log := r.Logger
+	if log == nil {
+		log = slog.Default()
+	}
 	cmdStr := strings.Join(append([]string{name}, args...), " ")
 	log.Debug("subproc: start", "cmd", cmdStr, "dir", dir)
 
@@ -77,6 +88,12 @@ func Run(ctx context.Context, dir, name string, args ...string) (Result, error) 
 		return res, fmt.Errorf("subproc %q: %w", name, runErr)
 	}
 	return res, nil
+}
+
+// Run is a convenience wrapper around Runner{}.Run that uses slog.Default()
+// for backward compatibility with existing callers.
+func Run(ctx context.Context, dir, name string, args ...string) (Result, error) {
+	return (&Runner{}).Run(ctx, dir, name, args...)
 }
 
 // trunc returns b as a string, capped at maxLogBytes with a truncation marker.
