@@ -37,14 +37,14 @@ var ErrSkipped = errors.New("extractor: skipped")
 // set when err is non-nil. Callers may override fields (e.g. Cmd) after
 // construction.
 func NewOutput(name, filename string, start, end time.Time, err error) Step {
-	s := Step{Name: name, Filename: filename, StartTs: start, EndTs: end}
+	step := Step{Name: name, Filename: filename, StartTs: start, EndTs: end}
 	if err != nil {
-		s.Status = StatusFailed
-		s.Err = err
+		step.Status = StatusFailed
+		step.Err = err
 	} else {
-		s.Status = StatusSucceeded
+		step.Status = StatusSucceeded
 	}
-	return s
+	return step
 }
 
 // Step is the result of a single named output produced by an extractor. Each

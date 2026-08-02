@@ -35,16 +35,16 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 // extractors delegate to this function.
 func RunObelisk(ctx context.Context, pageURL, dir, proxyURL, stepName, outputFile string) ([]extractors.Step, error) {
 	start := time.Now()
-	arc := obelisklib.Archiver{
+	archiver := obelisklib.Archiver{
 		RequestTimeout: extractors.DefaultTimeout,
 	}
 	if transport, err := proxyutil.Transport(proxyURL); err != nil {
 		return nil, fmt.Errorf("obelisk: %w", err)
 	} else if transport != nil {
-		arc.Transport = transport
+		archiver.Transport = transport
 	}
-	arc.Validate()
-	content, _, err := arc.Archive(ctx, obelisklib.Request{URL: pageURL})
+	archiver.Validate()
+	content, _, err := archiver.Archive(ctx, obelisklib.Request{URL: pageURL})
 	end := time.Now()
 
 	if err != nil {

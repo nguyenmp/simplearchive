@@ -73,9 +73,9 @@ var domainAliases = map[string]string{
 // embedded from another domain. It returns false when either URL fails to
 // parse or has no hostname, so an absent webpage_url never matches.
 func sameSite(a, b string) bool {
-	urlA, errA := url.Parse(a)
-	urlB, errB := url.Parse(b)
-	if errA != nil || errB != nil {
+	urlA, urlParseErrA := url.Parse(a)
+	urlB, urlParseErrB := url.Parse(b)
+	if urlParseErrA != nil || urlParseErrB != nil {
 		return false
 	}
 	hostA, hostB := strings.ToLower(urlA.Hostname()), strings.ToLower(urlB.Hostname())
@@ -85,9 +85,9 @@ func sameSite(a, b string) bool {
 	if hostA == hostB {
 		return true
 	}
-	domainA, errA := publicsuffix.EffectiveTLDPlusOne(hostA)
-	domainB, errB := publicsuffix.EffectiveTLDPlusOne(hostB)
-	if errA != nil || errB != nil {
+	domainA, domainErrA := publicsuffix.EffectiveTLDPlusOne(hostA)
+	domainB, domainErrB := publicsuffix.EffectiveTLDPlusOne(hostB)
+	if domainErrA != nil || domainErrB != nil {
 		return false
 	}
 	if alias, ok := domainAliases[domainA]; ok {

@@ -30,11 +30,11 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 
 	directFn := func() (string, error) { return Fetch(ctx, pageURL, dir) }
 	proxyFn := func() (string, error) {
-		t, transportErr := proxyutil.Transport(e.ProxyURL)
+		transport, transportErr := proxyutil.Transport(e.ProxyURL)
 		if transportErr != nil {
 			return "", fmt.Errorf("headers: proxy transport: %w", transportErr)
 		}
-		client := &http.Client{Timeout: extractors.DefaultTimeout, Transport: t}
+		client := &http.Client{Timeout: extractors.DefaultTimeout, Transport: transport}
 		return FetchWithClient(ctx, pageURL, dir, client)
 	}
 

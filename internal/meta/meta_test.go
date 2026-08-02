@@ -125,7 +125,7 @@ func TestMigrate_idempotent(t *testing.T) {
 // one per-output extractor_runs row (extractor=outName, e.g. "dom") referencing
 // it, then pins user_version at 2. It is the shared fixture for the v2->latest
 // migration tests.
-func seedV2DB(t *testing.T, path string, ts int64, outName string) {
+func seedV2DB(t *testing.T, path string, timestamp int64, outName string) {
 	t.Helper()
 	ctx := context.Background()
 	raw, err := sql.Open(driverName, dsn(path))
@@ -140,12 +140,12 @@ func seedV2DB(t *testing.T, path string, ts int64, outName string) {
 	}
 	if _, err := raw.ExecContext(ctx, `
 		INSERT INTO snapshots (timestamp, url, status, is_archived, created_at, updated_at)
-		VALUES (?, 'https://example.com', 'succeeded', 1, 1, 1)`, ts); err != nil {
+		VALUES (?, 'https://example.com', 'succeeded', 1, 1, 1)`, timestamp); err != nil {
 		t.Fatalf("seed snapshot: %v", err)
 	}
 	if _, err := raw.ExecContext(ctx, `
 		INSERT INTO extractor_runs (timestamp, extractor, status, output, started_at, finished_at)
-		VALUES (?, ?, 'succeeded', 'output.html', 1, 2)`, ts, outName); err != nil {
+		VALUES (?, ?, 'succeeded', 'output.html', 1, 2)`, timestamp, outName); err != nil {
 		t.Fatalf("seed extractor_run: %v", err)
 	}
 	if _, err := raw.ExecContext(ctx, "PRAGMA user_version = 2"); err != nil {
@@ -181,8 +181,8 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "meta.db")
 	ctx := context.Background()
-	const ts int64 = 1700000000000000
-	seedV2DB(t, path, ts, "dom")
+	const timestamp int64 = 1700000000000000
+	seedV2DB(t, path, timestamp, "dom")
 
 	db, err := Open(ctx, path)
 	if err != nil {
@@ -198,14 +198,14 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	var id int64
 	var gotTS int64
 	if err := db.db.QueryRowContext(ctx,
-		"SELECT id, timestamp FROM snapshots WHERE timestamp = ?", ts).Scan(&id, &gotTS); err != nil {
+		"SELECT id, timestamp FROM snapshots WHERE timestamp = ?", timestamp).Scan(&id, &gotTS); err != nil {
 		t.Fatalf("query migrated snapshot: %v", err)
 	}
 	if id == 0 {
 		t.Errorf("id = 0, want a non-zero surrogate id")
 	}
-	if gotTS != ts {
-		t.Errorf("timestamp = %d, want %d", gotTS, ts)
+	if gotTS != timestamp {
+		t.Errorf("timestamp = %d, want %d", gotTS, timestamp)
 	}
 	assertNoFKViolations(t, db)
 }
@@ -220,8 +220,8 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "meta.db")
 	ctx := context.Background()
-	const ts int64 = 1700000000000000
-	seedV2DB(t, path, ts, "dom")
+	const timestamp int64 = 1700000000000000
+	seedV2DB(t, path, timestamp, "dom")
 
 	db, err := Open(ctx, path)
 	if err != nil {
@@ -249,7 +249,7 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 		t.Errorf("status = %q, want succeeded", status)
 	}
 	var snapID int64
-	if err := db.db.QueryRowContext(ctx, "SELECT id FROM snapshots WHERE timestamp = ?", ts).Scan(&snapID); err != nil {
+	if err := db.db.QueryRowContext(ctx, "SELECT id FROM snapshots WHERE timestamp = ?", timestamp).Scan(&snapID); err != nil {
 		t.Fatalf("query snapshot id: %v", err)
 	}
 	if snapshotID != snapID {
@@ -282,8 +282,8 @@ func TestMigrate_v6OnDeleteCascade(t *testing.T) {
 	defer db.Close()
 
 	ctx := context.Background()
-	const ts int64 = 1700000000000000
-	snapshotID, err := db.CreateSnapshot(ctx, "https://example.com", ts)
+	const timestamp int64 = 1700000000000000
+	snapshotID, err := db.CreateSnapshot(ctx, "https://example.com", timestamp)
 	if err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
@@ -292,8 +292,8 @@ func TestMigrate_v6OnDeleteCascade(t *testing.T) {
 		SnapshotID: snapshotID,
 		Extractor:  "wget",
 		Status:     "succeeded",
-		StartedAt:  ts,
-		FinishedAt: ts + 1000,
+		StartedAt:  timestamp,
+		FinishedAt: timestamp + 1000,
 	})
 	if err != nil {
 		t.Fatalf("InsertRun: %v", err)
@@ -303,8 +303,8 @@ func TestMigrate_v6OnDeleteCascade(t *testing.T) {
 		Name:     "dom",
 		Filename: "output.html",
 		Status:   "succeeded",
-		StartTs:  ts,
-		EndTs:    ts + 500,
+		StartTs:  timestamp,
+		EndTs:    timestamp + 500,
 	}); err != nil {
 		t.Fatalf("InsertStepOutput: %v", err)
 	}

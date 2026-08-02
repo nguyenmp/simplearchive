@@ -56,11 +56,11 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 
 	out := make([]Snapshot, 0, limit)
 	for rows.Next() {
-		var s Snapshot
-		if err := rows.Scan(&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		var snap Snapshot
+		if err := rows.Scan(&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt); err != nil {
 			return nil, 0, fmt.Errorf("meta.ListSnapshots: scan: %w", err)
 		}
-		out = append(out, s)
+		out = append(out, snap)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("meta.ListSnapshots: rows: %w", err)
@@ -78,9 +78,9 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 
 	placeholders := make([]string, len(timestamps))
 	args := make([]any, len(timestamps))
-	for i, ts := range timestamps {
+	for i, timestamp := range timestamps {
 		placeholders[i] = "?"
-		args[i] = ts
+		args[i] = timestamp
 	}
 
 	query := fmt.Sprintf(`
@@ -97,11 +97,11 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 
 	out := make([]Snapshot, 0, len(timestamps))
 	for rows.Next() {
-		var s Snapshot
-		if err := rows.Scan(&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		var snap Snapshot
+		if err := rows.Scan(&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: scan: %w", err)
 		}
-		out = append(out, s)
+		out = append(out, snap)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: rows: %w", err)
@@ -112,38 +112,38 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 // GetSnapshot returns the single snapshot identified by timestamp. It returns
 // ErrNotFound when no row matches.
 func (d *DB) GetSnapshot(ctx context.Context, timestamp int64) (Snapshot, error) {
-	var s Snapshot
+	var snap Snapshot
 	err := d.db.QueryRowContext(ctx, `
 		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		WHERE timestamp = ?`, timestamp).Scan(
-		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt)
+		&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Snapshot{}, ErrNotFound
 		}
 		return Snapshot{}, fmt.Errorf("meta.GetSnapshot: %w", err)
 	}
-	return s, nil
+	return snap, nil
 }
 
 // GetSnapshotByID returns the single snapshot identified by its surrogate id. It
 // returns ErrNotFound when no row matches. Used by the worker, which dispatches
 // by id (the foreign key), not by the ArchiveBox timestamp.
 func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
-	var s Snapshot
+	var snap Snapshot
 	err := d.db.QueryRowContext(ctx, `
 		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		WHERE id = ?`, id).Scan(
-		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt)
+		&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Snapshot{}, ErrNotFound
 		}
 		return Snapshot{}, fmt.Errorf("meta.GetSnapshotByID: %w", err)
 	}
-	return s, nil
+	return snap, nil
 }
 
 // DeleteSnapshot removes the snapshot identified by timestamp. ON DELETE

@@ -230,13 +230,13 @@ func TestScan_fallsBackToBestTitle(t *testing.T) {
 	root := t.TempDir()
 
 	// Create a snapshot with an empty title in index.json but a mercury title available.
-	ts := int64(1700000000000003)
-	dir := filepath.Join(root, snapshot.Format(ts))
+	timestamp := int64(1700000000000003)
+	dir := filepath.Join(root, snapshot.Format(timestamp))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	if err := WriteIndex(IndexData{
-		Timestamp: ts,
+		Timestamp: timestamp,
 		URL:       "https://example.com",
 		Dir:       dir,
 		Outputs:   []string{"output.html"},
@@ -269,13 +269,13 @@ func TestScan_preservesNonEmptyTitle(t *testing.T) {
 	root := t.TempDir()
 
 	// Create a snapshot with an explicit title in index.json.
-	ts := int64(1700000000000004)
-	dir := filepath.Join(root, snapshot.Format(ts))
+	timestamp := int64(1700000000000004)
+	dir := filepath.Join(root, snapshot.Format(timestamp))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	if err := WriteIndex(IndexData{
-		Timestamp: ts,
+		Timestamp: timestamp,
 		URL:       "https://example.com",
 		Title:     "Explicit Title",
 		Dir:       dir,

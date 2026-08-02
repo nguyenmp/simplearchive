@@ -45,8 +45,8 @@ func (r *Runner) Run(ctx context.Context, dir, name string, args ...string) (Res
 	if log == nil {
 		log = slog.Default()
 	}
-	cmdStr := strings.Join(append([]string{name}, args...), " ")
-	log.Debug("subproc: start", "cmd", cmdStr, "dir", dir)
+	commandLine := strings.Join(append([]string{name}, args...), " ")
+	log.Debug("subproc: start", "cmd", commandLine, "dir", dir)
 
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -57,7 +57,7 @@ func (r *Runner) Run(ctx context.Context, dir, name string, args ...string) (Res
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	runErr := cmd.Run()
-	dur := time.Since(start)
+	duration := time.Since(start)
 
 	exitCode := 0
 	var exitErr *exec.ExitError
@@ -67,27 +67,27 @@ func (r *Runner) Run(ctx context.Context, dir, name string, args ...string) (Res
 		exitCode = -1
 	}
 
-	res := Result{
+	result := Result{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
 		ExitCode: exitCode,
-		Duration: dur,
+		Duration: duration,
 	}
 	log.Info("subproc: done",
-		"cmd", cmdStr,
+		"cmd", commandLine,
 		"exit", exitCode,
-		"duration_ms", dur.Milliseconds(),
-		"stdout", trunc(res.Stdout),
-		"stderr", trunc(res.Stderr),
+		"duration_ms", duration.Milliseconds(),
+		"stdout", trunc(result.Stdout),
+		"stderr", trunc(result.Stderr),
 	)
 
 	if runErr != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return res, fmt.Errorf("subproc %q: %w: %s", name, runErr, msg)
+			return result, fmt.Errorf("subproc %q: %w: %s", name, runErr, msg)
 		}
-		return res, fmt.Errorf("subproc %q: %w", name, runErr)
+		return result, fmt.Errorf("subproc %q: %w", name, runErr)
 	}
-	return res, nil
+	return result, nil
 }
 
 // Run is a convenience wrapper around Runner{}.Run that uses slog.Default()

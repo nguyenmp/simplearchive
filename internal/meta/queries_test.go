@@ -28,20 +28,20 @@ func TestGetSnapshot_found(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000000
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	const timestamp int64 = 1700000000000000
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
-	if err := db.UpdateSnapshot(context.Background(), ts, "Example"); err != nil {
+	if err := db.UpdateSnapshot(context.Background(), timestamp, "Example"); err != nil {
 		t.Fatalf("UpdateSnapshot: %v", err)
 	}
 
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
-	if snap.Timestamp != ts {
-		t.Errorf("timestamp = %d, want %d", snap.Timestamp, ts)
+	if snap.Timestamp != timestamp {
+		t.Errorf("timestamp = %d, want %d", snap.Timestamp, timestamp)
 	}
 	if snap.URL != "https://example.com" {
 		t.Errorf("url = %q", snap.URL)
@@ -59,12 +59,12 @@ func TestGetSnapshot_nullTitleIsEmpty(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000001
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	const timestamp int64 = 1700000000000001
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 	// Never call UpdateSnapshot, so title stays NULL.
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -102,9 +102,9 @@ func TestListSnapshots_orderingAndPagination(t *testing.T) {
 	defer db.Close()
 
 	// Insert three snapshots out of order.
-	for _, ts := range []int64{1700000000000001, 1700000000000003, 1700000000000002} {
-		if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
-			t.Fatalf("CreateSnapshot %d: %v", ts, err)
+	for _, timestamp := range []int64{1700000000000001, 1700000000000003, 1700000000000002} {
+		if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
+			t.Fatalf("CreateSnapshot %d: %v", timestamp, err)
 		}
 	}
 
@@ -169,21 +169,21 @@ func TestDeleteSnapshot_removesRowAndCascades(t *testing.T) {
 	defer db.Close()
 
 	ctx := context.Background()
-	const ts int64 = 1700000000000000
-	if _, err := db.CreateSnapshot(ctx, "https://example.com", ts); err != nil {
+	const timestamp int64 = 1700000000000000
+	if _, err := db.CreateSnapshot(ctx, "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
-	if err := db.DeleteSnapshot(ctx, ts); err != nil {
+	if err := db.DeleteSnapshot(ctx, timestamp); err != nil {
 		t.Fatalf("DeleteSnapshot: %v", err)
 	}
 
-	_, err = db.GetSnapshot(ctx, ts)
+	_, err = db.GetSnapshot(ctx, timestamp)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("GetSnapshot after delete: err = %v, want ErrNotFound", err)
 	}
 
 	// Deleting a missing snapshot returns ErrNotFound.
-	if err := db.DeleteSnapshot(ctx, ts); !errors.Is(err, ErrNotFound) {
+	if err := db.DeleteSnapshot(ctx, timestamp); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("DeleteSnapshot missing: err = %v, want ErrNotFound", err)
 	}
 }

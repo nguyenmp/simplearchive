@@ -42,22 +42,22 @@ type StepOutput struct {
 // StartedAt/FinishedAt are epoch microseconds; a zero value is stored as NULL.
 // An empty Error is stored as NULL. Outputs are not written here; use
 // InsertStepOutput for each output. Returns the new run id.
-func (d *DB) InsertRun(ctx context.Context, r ExtractorRun) (int64, error) {
+func (d *DB) InsertRun(ctx context.Context, run ExtractorRun) (int64, error) {
 	var startedAt, finishedAt any
-	if r.StartedAt != 0 {
-		startedAt = r.StartedAt
+	if run.StartedAt != 0 {
+		startedAt = run.StartedAt
 	}
-	if r.FinishedAt != 0 {
-		finishedAt = r.FinishedAt
+	if run.FinishedAt != 0 {
+		finishedAt = run.FinishedAt
 	}
 	var errArg any
-	if r.Error != "" {
-		errArg = r.Error
+	if run.Error != "" {
+		errArg = run.Error
 	}
 	res, err := d.db.ExecContext(ctx, `
 		INSERT INTO extractor_runs (snapshot_id, extractor, status, started_at, finished_at, error)
 		VALUES (?, ?, ?, ?, ?, ?)`,
-		r.SnapshotID, r.Extractor, r.Status, startedAt, finishedAt, errArg)
+		run.SnapshotID, run.Extractor, run.Status, startedAt, finishedAt, errArg)
 	if err != nil {
 		return 0, fmt.Errorf("meta.InsertRun: insert: %w", err)
 	}
@@ -119,12 +119,12 @@ func (d *DB) ListRunsBySnapshot(ctx context.Context, snapshotID int64) ([]Extrac
 	}
 	runs := make([]ExtractorRun, 0)
 	for rows.Next() {
-		var r ExtractorRun
-		if err := rows.Scan(&r.ID, &r.SnapshotID, &r.Extractor, &r.Status, &r.StartedAt, &r.FinishedAt, &r.Error); err != nil {
+		var run ExtractorRun
+		if err := rows.Scan(&run.ID, &run.SnapshotID, &run.Extractor, &run.Status, &run.StartedAt, &run.FinishedAt, &run.Error); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("meta.ListRunsBySnapshot: scan: %w", err)
 		}
-		runs = append(runs, r)
+		runs = append(runs, run)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("meta.ListRunsBySnapshot: rows: %w", err)
@@ -137,8 +137,8 @@ func (d *DB) ListRunsBySnapshot(ctx context.Context, snapshotID int64) ([]Extrac
 	}
 
 	ids := make([]any, 0, len(runs))
-	for _, r := range runs {
-		ids = append(ids, r.ID)
+	for _, run := range runs {
+		ids = append(ids, run.ID)
 	}
 	stepOutputsByRun, err := d.queryStepOutputs(ctx, ids)
 	if err != nil {
@@ -190,12 +190,12 @@ func placeholders(n int) string {
 	if n <= 0 {
 		return ""
 	}
-	q := make([]byte, 0, n*3-2)
+	placeholders := make([]byte, 0, n*3-2)
 	for i := 0; i < n; i++ {
 		if i > 0 {
-			q = append(q, ',', ' ')
+			placeholders = append(placeholders, ',', ' ')
 		}
-		q = append(q, '?')
+		placeholders = append(placeholders, '?')
 	}
-	return string(q)
+	return string(placeholders)
 }

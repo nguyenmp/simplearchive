@@ -378,25 +378,25 @@ func (s *Server) handleAddForm(w http.ResponseWriter, r *http.Request) {
 // goroutine drains the pending extractor_runs asynchronously; the detail page
 // shows the steps transitioning pending -> running -> terminal as it does.
 func (s *Server) handleAddSubmit(w http.ResponseWriter, r *http.Request) {
-	url := r.FormValue("url")
-	if url == "" {
-		s.renderAddError(w, url, "URL is required")
+	submittedURL := r.FormValue("url")
+	if submittedURL == "" {
+		s.renderAddError(w, submittedURL, "URL is required")
 		return
 	}
 
-	_, timestamp, err := ingest.Enqueue(r.Context(), s.DB, url)
+	_, timestamp, err := ingest.Enqueue(r.Context(), s.DB, submittedURL)
 	if err != nil {
-		s.Logger.Error("add: enqueue", "url", url, "err", err)
-		s.renderAddError(w, url, "failed to enqueue: "+err.Error())
+		s.Logger.Error("add: enqueue", "url", submittedURL, "err", err)
+		s.renderAddError(w, submittedURL, "failed to enqueue: "+err.Error())
 		return
 	}
 
 	http.Redirect(w, r, snapshotPath(timestamp), http.StatusSeeOther)
 }
 
-func (s *Server) renderAddError(w http.ResponseWriter, url, msg string) {
+func (s *Server) renderAddError(w http.ResponseWriter, submittedURL, msg string) {
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	if err := s.render.render(w, "add", addData{URL: url, Error: msg}); err != nil {
+	if err := s.render.render(w, "add", addData{URL: submittedURL, Error: msg}); err != nil {
 		s.Logger.Error("add: render error", "err", err)
 	}
 }
@@ -433,8 +433,8 @@ var ErrRipgrepNotFound = errors.New("search is unavailable: ripgrep (rg) not ins
 // It returns a deduplicated, newest-first list of snapshot timestamps.
 // An empty q returns nil. If ripgrep exits with an unexpected code, an error
 // is returned. If ripgrep is not installed, ErrRipgrepNotFound is returned.
-func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error) {
-	if q == "" {
+func (s *Server) searchSnapshots(ctx context.Context, query string) ([]int64, error) {
+	if query == "" {
 		return nil, nil
 	}
 	if _, err := exec.LookPath("rg"); err != nil {
@@ -442,7 +442,7 @@ func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error)
 	}
 	cmd := exec.CommandContext(ctx, "rg",
 		"-l", "--no-ignore", "--ignore-case",
-		"--", q, s.ArchiveRoot,
+		"--", query, s.ArchiveRoot,
 	)
 	out, err := cmd.Output()
 	if err != nil {

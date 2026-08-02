@@ -13,8 +13,8 @@ func TestInsertRun_andListBySnapshot(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000000
-	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", ts)
+	const timestamp int64 = 1700000000000000
+	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp)
 	if err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
@@ -27,8 +27,8 @@ func TestInsertRun_andListBySnapshot(t *testing.T) {
 		SnapshotID: snapshotID,
 		Extractor:  "wget",
 		Status:     "succeeded",
-		StartedAt:  ts,
-		FinishedAt: ts + 1000,
+		StartedAt:  timestamp,
+		FinishedAt: timestamp + 1000,
 	})
 	if err != nil {
 		t.Fatalf("InsertRun wget: %v", err)
@@ -37,8 +37,8 @@ func TestInsertRun_andListBySnapshot(t *testing.T) {
 		t.Fatal("InsertRun returned id 0")
 	}
 	for _, out := range []StepOutput{
-		{RunID: runID, Name: "dom", Filename: "output.html", Status: "succeeded", StartTs: ts, EndTs: ts + 500},
-		{RunID: runID, Name: "favicon", Filename: "favicon.ico", Status: "succeeded", StartTs: ts, EndTs: ts + 1000},
+		{RunID: runID, Name: "dom", Filename: "output.html", Status: "succeeded", StartTs: timestamp, EndTs: timestamp + 500},
+		{RunID: runID, Name: "favicon", Filename: "favicon.ico", Status: "succeeded", StartTs: timestamp, EndTs: timestamp + 1000},
 	} {
 		if _, err := db.InsertStepOutput(context.Background(), runID, out); err != nil {
 			t.Fatalf("InsertStepOutput %s: %v", out.Name, err)
@@ -50,14 +50,14 @@ func TestInsertRun_andListBySnapshot(t *testing.T) {
 		SnapshotID: snapshotID,
 		Extractor:  "wget-favicon",
 		Status:     "failed",
-		StartedAt:  ts,
+		StartedAt:  timestamp,
 		Error:      "wget: exit status 8",
 	})
 	if err != nil {
 		t.Fatalf("InsertRun favicon: %v", err)
 	}
 	if _, err := db.InsertStepOutput(context.Background(), runID2, StepOutput{
-		RunID: runID2, Name: "favicon", Status: "failed", StartTs: ts, Error: "wget: exit status 8",
+		RunID: runID2, Name: "favicon", Status: "failed", StartTs: timestamp, Error: "wget: exit status 8",
 	}); err != nil {
 		t.Fatalf("InsertStepOutput favicon: %v", err)
 	}
@@ -73,8 +73,8 @@ func TestInsertRun_andListBySnapshot(t *testing.T) {
 	if runs[0].Extractor != "wget" || runs[0].Status != "succeeded" {
 		t.Errorf("runs[0] = %+v", runs[0])
 	}
-	if runs[0].FinishedAt != ts+1000 {
-		t.Errorf("runs[0].FinishedAt = %d, want %d", runs[0].FinishedAt, ts+1000)
+	if runs[0].FinishedAt != timestamp+1000 {
+		t.Errorf("runs[0].FinishedAt = %d, want %d", runs[0].FinishedAt, timestamp+1000)
 	}
 	if len(runs[0].Outputs) != 2 {
 		t.Fatalf("runs[0] outputs = %d, want 2", len(runs[0].Outputs))
@@ -108,13 +108,13 @@ func TestInsertStepOutput_marshalCmd(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000000
-	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", ts)
+	const timestamp int64 = 1700000000000000
+	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp)
 	if err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 	runID, err := db.InsertRun(context.Background(), ExtractorRun{
-		SnapshotID: snapshotID, Extractor: "wget", Status: "succeeded", StartedAt: ts, FinishedAt: ts,
+		SnapshotID: snapshotID, Extractor: "wget", Status: "succeeded", StartedAt: timestamp, FinishedAt: timestamp,
 	})
 	if err != nil {
 		t.Fatalf("InsertRun: %v", err)
@@ -147,8 +147,8 @@ func TestListRunsBySnapshot_empty(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000000
-	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", ts)
+	const timestamp int64 = 1700000000000000
+	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp)
 	if err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}

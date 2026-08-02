@@ -40,45 +40,44 @@ func (e Extractor) bin() string {
 // returns the steps recorded so far alongside the error (best-effort).
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
-	argv := argv(e.bin(), e.Cookies, e.ProxyURL, pageURL)
-	_, runErr := subproc.Run(ctx, dir, argv[0], argv[1:]...)
+	cmdArgs := buildArgv(e.bin(), e.Cookies, e.ProxyURL, pageURL)
+	_, runErr := subproc.Run(ctx, dir, cmdArgs[0], cmdArgs[1:]...)
 	end := time.Now()
 
 	infoFiles, _ := filepath.Glob(filepath.Join(dir, "*.info.json"))
 	vttFiles, _ := filepath.Glob(filepath.Join(dir, "*.vtt"))
 
-	cmdArgs := argv
 	steps := make([]extractors.Step, 0, 2)
 
-	meta := extractors.Step{Name: "youtube_metadata", Cmd: cmdArgs, StartTs: start, EndTs: end}
+	metadataStep := extractors.Step{Name: "youtube_metadata", Cmd: cmdArgs, StartTs: start, EndTs: end}
 	if len(infoFiles) > 0 {
-		meta.Filename = filepath.Base(infoFiles[0])
-		meta.Status = extractors.StatusSucceeded
+		metadataStep.Filename = filepath.Base(infoFiles[0])
+		metadataStep.Status = extractors.StatusSucceeded
 	} else {
-		meta.Status = extractors.StatusFailed
+		metadataStep.Status = extractors.StatusFailed
 		if runErr != nil {
-			meta.Err = fmt.Errorf("ytdlp: %w", runErr)
+			metadataStep.Err = fmt.Errorf("ytdlp: %w", runErr)
 		} else {
-			meta.Err = errors.New("ytdlp: no info.json produced")
+			metadataStep.Err = errors.New("ytdlp: no info.json produced")
 		}
 	}
-	steps = append(steps, meta)
+	steps = append(steps, metadataStep)
 
 	transcript := extractors.Step{Name: "transcript", Cmd: cmdArgs, StartTs: start, EndTs: end}
 	if len(vttFiles) > 0 {
 		transcript.Filename = filepath.Base(vttFiles[0])
 		transcript.Status = extractors.StatusSucceeded
-	} else if meta.Status == extractors.StatusSucceeded {
+	} else if metadataStep.Status == extractors.StatusSucceeded {
 		transcript.Status = extractors.StatusSkipped
 		transcript.Err = errors.New("no transcript available")
 	} else {
 		transcript.Status = extractors.StatusFailed
-		transcript.Err = meta.Err
+		transcript.Err = metadataStep.Err
 	}
 	steps = append(steps, transcript)
 
-	if meta.Status == extractors.StatusFailed {
-		return steps, meta.Err
+	if metadataStep.Status == extractors.StatusFailed {
+		return steps, metadataStep.Err
 	}
 	return steps, nil
 }
@@ -88,7 +87,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 // runs with its working directory set to the snapshot dir (see Run), so yt-dlp
 // resolves the relative template against that dir. Embedding the dir in
 // --output as well would double-nest the path.
-func argv(bin, cookies, proxyURL, pageURL string) []string {
+func buildArgv(bin, cookies, proxyURL, pageURL string) []string {
 	out := []string{
 		bin,
 		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",

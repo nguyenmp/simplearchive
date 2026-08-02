@@ -80,12 +80,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		return nil, fmt.Errorf("meta.Open: ping %q: %w", path, err)
 	}
 
-	d := &DB{db}
-	if err := d.migrate(ctx); err != nil {
+	metaDB := &DB{db}
+	if err := metaDB.migrate(ctx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("meta.Open: migrate %q: %w", path, err)
 	}
-	return d, nil
+	return metaDB, nil
 }
 
 func (d *DB) Close() error {

@@ -60,14 +60,14 @@ func TestExtractor_remote(t *testing.T) {
 	const body = "<html><head><title>Hi</title></head><body><p>rendered</p></body></html>"
 	// Bind on all interfaces: the remote browser runs in another container and
 	// reaches this server over the docker network by container hostname.
-	l, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(body))
 	}))
-	srv.Listener = l
+	srv.Listener = listener
 	srv.Start()
 	defer srv.Close()
 
@@ -75,7 +75,7 @@ func TestExtractor_remote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hostname: %v", err)
 	}
-	_, port, err := net.SplitHostPort(l.Addr().String())
+	_, port, err := net.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		t.Fatalf("split host port: %v", err)
 	}
@@ -112,12 +112,12 @@ func TestExtractor_remoteProxyFailure(t *testing.T) {
 	if remote == "" {
 		t.Skip("CHROME_CDP_URL not set; skipping remote-browser test")
 	}
-	l, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	srv.Listener = l
+	srv.Listener = listener
 	srv.Start()
 	defer srv.Close()
 
@@ -125,7 +125,7 @@ func TestExtractor_remoteProxyFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hostname: %v", err)
 	}
-	_, port, err := net.SplitHostPort(l.Addr().String())
+	_, port, err := net.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		t.Fatalf("split host port: %v", err)
 	}
@@ -164,12 +164,12 @@ func TestRemoteWSURL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse result: %v", err)
 		}
-		q := u.Query()
-		if q.Get("--proxy-server") != "socks5://tor-socks-proxy:9150" {
-			t.Errorf("--proxy-server = %q", q.Get("--proxy-server"))
+		queryParams := u.Query()
+		if queryParams.Get("--proxy-server") != "socks5://tor-socks-proxy:9150" {
+			t.Errorf("--proxy-server = %q", queryParams.Get("--proxy-server"))
 		}
-		if q.Get("headful") != "true" {
-			t.Errorf("headful = %q, want preserved", q.Get("headful"))
+		if queryParams.Get("headful") != "true" {
+			t.Errorf("headful = %q, want preserved", queryParams.Get("headful"))
 		}
 	})
 

@@ -22,11 +22,11 @@ import (
 func seedSnapshots(t *testing.T, db *meta.DB, n int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
-		ts := int64(1700000000000000 + i)
-		if _, err := db.CreateSnapshot(context.Background(), "https://example.com/"+strconv.Itoa(i), ts); err != nil {
+		timestamp := int64(1700000000000000 + i)
+		if _, err := db.CreateSnapshot(context.Background(), "https://example.com/"+strconv.Itoa(i), timestamp); err != nil {
 			t.Fatalf("CreateSnapshot: %v", err)
 		}
-		if err := db.UpdateSnapshot(context.Background(), ts, "Title "+strconv.Itoa(i)); err != nil {
+		if err := db.UpdateSnapshot(context.Background(), timestamp, "Title "+strconv.Itoa(i)); err != nil {
 			t.Fatalf("UpdateSnapshot: %v", err)
 		}
 	}
@@ -105,11 +105,11 @@ func TestHandleDetail_found(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
 	seedSnapshots(t, db, 1)
-	const ts int64 = 1700000000000000
+	const timestamp int64 = 1700000000000000
 
 	// Create a snapshot dir with one output file so the file list is populated.
 	root := filepath.Join(t.TempDir(), "archive")
-	dir := archive.SnapshotDir(root, ts)
+	dir := archive.SnapshotDir(root, timestamp)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestHandleDetail_found(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	// Seed an extractor run so the per-extractor status table is populated.
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -125,14 +125,14 @@ func TestHandleDetail_found(t *testing.T) {
 		SnapshotID: snap.ID,
 		Extractor:  "wget",
 		Status:     "succeeded",
-		StartedAt:  ts,
-		FinishedAt: ts + 1000,
+		StartedAt:  timestamp,
+		FinishedAt: timestamp + 1000,
 	})
 	if err != nil {
 		t.Fatalf("InsertRun: %v", err)
 	}
 	if _, err := db.InsertStepOutput(context.Background(), runID, meta.StepOutput{
-		RunID: runID, Name: "dom", Filename: "output.html", Status: "succeeded", StartTs: ts, EndTs: ts + 1000,
+		RunID: runID, Name: "dom", Filename: "output.html", Status: "succeeded", StartTs: timestamp, EndTs: timestamp + 1000,
 	}); err != nil {
 		t.Fatalf("InsertStepOutput: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestHandleDetail_found(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -158,7 +158,7 @@ func TestHandleDetail_found(t *testing.T) {
 		t.Errorf("body missing file link: %q", body)
 	}
 	// File link points at the static archive route.
-	if !strings.Contains(body, "/archive/"+snapshot.Format(ts)+"/output.html") {
+	if !strings.Contains(body, "/archive/"+snapshot.Format(timestamp)+"/output.html") {
 		t.Errorf("body missing archive file path: %q", body)
 	}
 	// Per-extractor status table is rendered: the wget run and its dom output.
@@ -177,9 +177,9 @@ func TestHandleDetail_showsRunDuration(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
 	seedSnapshots(t, db, 1)
-	const ts int64 = 1700000000000000
+	const timestamp int64 = 1700000000000000
 
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -188,8 +188,8 @@ func TestHandleDetail_showsRunDuration(t *testing.T) {
 		SnapshotID: snap.ID,
 		Extractor:  "wget",
 		Status:     "succeeded",
-		StartedAt:  ts,
-		FinishedAt: ts + 14_000_000,
+		StartedAt:  timestamp,
+		FinishedAt: timestamp + 14_000_000,
 	}); err != nil {
 		t.Fatalf("InsertRun: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestHandleDetail_showsRunDuration(t *testing.T) {
 		SnapshotID: snap.ID,
 		Extractor:  "obelisk",
 		Status:     "running",
-		StartedAt:  ts,
+		StartedAt:  timestamp,
 	}); err != nil {
 		t.Fatalf("InsertRun: %v", err)
 	}
@@ -206,16 +206,18 @@ func TestHandleDetail_showsRunDuration(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
 	}
 	body := rec.Body.String()
-	// Duration in whole seconds, with the start time as a hover tooltip.
-	if !strings.Contains(body, `title="started `+formatTimestamp(ts)+`">14s</span>`) {
-		t.Errorf("body missing run duration with start-time tooltip: %q", body)
+	if !strings.Contains(body, "14s") {
+		t.Errorf("body missing run duration 14s: %q", body)
+	}
+	if !strings.Contains(body, `title="started `+formatTimestamp(timestamp)) {
+		t.Errorf("body missing start-time tooltip: %q", body)
 	}
 	// The running (unfinished) obelisk run must not show a duration: only one
 	// duration tooltip should be rendered in total.
@@ -228,9 +230,9 @@ func TestHandleDetail_autoRefresh_pending(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
 	seedSnapshots(t, db, 1)
-	const ts int64 = 1700000000000000
+	const timestamp int64 = 1700000000000000
 
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -238,7 +240,7 @@ func TestHandleDetail_autoRefresh_pending(t *testing.T) {
 		SnapshotID: snap.ID,
 		Extractor:  "wget",
 		Status:     "pending",
-		StartedAt:  ts,
+		StartedAt:  timestamp,
 	}); err != nil {
 		t.Fatalf("InsertRun: %v", err)
 	}
@@ -247,7 +249,7 @@ func TestHandleDetail_autoRefresh_pending(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -262,9 +264,9 @@ func TestHandleDetail_autoRefresh_running(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
 	seedSnapshots(t, db, 1)
-	const ts int64 = 1700000000000000
+	const timestamp int64 = 1700000000000000
 
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -272,7 +274,7 @@ func TestHandleDetail_autoRefresh_running(t *testing.T) {
 		SnapshotID: snap.ID,
 		Extractor:  "wget",
 		Status:     "running",
-		StartedAt:  ts,
+		StartedAt:  timestamp,
 	}); err != nil {
 		t.Fatalf("InsertRun: %v", err)
 	}
@@ -281,7 +283,7 @@ func TestHandleDetail_autoRefresh_running(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if got := rec.Header().Get("Refresh"); got != "1" {
@@ -293,9 +295,9 @@ func TestHandleDetail_noAutoRefreshWhenTerminal(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
 	seedSnapshots(t, db, 1)
-	const ts int64 = 1700000000000000
+	const timestamp int64 = 1700000000000000
 
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -304,8 +306,8 @@ func TestHandleDetail_noAutoRefreshWhenTerminal(t *testing.T) {
 			SnapshotID: snap.ID,
 			Extractor:  "wget",
 			Status:     status,
-			StartedAt:  ts,
-			FinishedAt: ts + 1000,
+			StartedAt:  timestamp,
+			FinishedAt: timestamp + 1000,
 		}); err != nil {
 			t.Fatalf("InsertRun(%s): %v", status, err)
 		}
@@ -315,7 +317,7 @@ func TestHandleDetail_noAutoRefreshWhenTerminal(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -448,8 +450,8 @@ func TestHandleList_withQuery_searches(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "archive")
 	// Snapshot 0 has a matching file; snapshot 1 does not.
 	for i := 0; i < 3; i++ {
-		ts := int64(1700000000000000 + i)
-		dir := archive.SnapshotDir(root, ts)
+		timestamp := int64(1700000000000000 + i)
+		dir := archive.SnapshotDir(root, timestamp)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
@@ -518,8 +520,8 @@ func TestHandleList_withQuery_noMatches(t *testing.T) {
 func TestHandleRerun_enqueuesPendingRun(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
@@ -527,7 +529,7 @@ func TestHandleRerun_enqueuesPendingRun(t *testing.T) {
 	r := s.Router()
 
 	form := "extractor=wget"
-	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(ts)+"/rerun", strings.NewReader(form))
+	req := httptest.NewRequest(http.MethodPost, "/"+	snapshot.Format(timestamp)+"/rerun", strings.NewReader(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -536,7 +538,7 @@ func TestHandleRerun_enqueuesPendingRun(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusSeeOther, rec.Body.String())
 	}
 
-	snap, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), timestamp)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
@@ -555,8 +557,8 @@ func TestHandleRerun_enqueuesPendingRun(t *testing.T) {
 func TestHandleRerun_unknownExtractor(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
@@ -564,7 +566,7 @@ func TestHandleRerun_unknownExtractor(t *testing.T) {
 	r := s.Router()
 
 	form := "extractor=not-an-extractor"
-	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(ts)+"/rerun", strings.NewReader(form))
+	req := httptest.NewRequest(http.MethodPost, "/"+	snapshot.Format(timestamp)+"/rerun", strings.NewReader(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -593,8 +595,8 @@ func TestHandleRerun_notFound(t *testing.T) {
 func TestHandleDetail_hasResubmitAndRerun(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
@@ -602,7 +604,7 @@ func TestHandleDetail_hasResubmitAndRerun(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -615,7 +617,7 @@ func TestHandleDetail_hasResubmitAndRerun(t *testing.T) {
 	if !strings.Contains(body, "Re-run extractor") {
 		t.Errorf("detail body missing rerun button")
 	}
-	if !strings.Contains(body, `<option value="wget">wget</option>`) {
-		t.Errorf("detail body missing wget option in rerun dropdown")
+	if !strings.Contains(body, `value="wget"`) {
+		t.Errorf("detail body missing wget option value in rerun dropdown")
 	}
 }

@@ -30,10 +30,10 @@ func newRenderer() *renderer {
 func (r *renderer) page(name string) (*template.Template, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if t, ok := r.sets[name]; ok {
-		return t, nil
+	if tmpl, ok := r.sets[name]; ok {
+		return tmpl, nil
 	}
-	t := template.New("").Funcs(template.FuncMap{
+	tmpl := template.New("").Funcs(template.FuncMap{
 		"formatTimestamp": formatTimestamp,
 		"snapshotPath":    snapshotPath,
 		"statusClass":     statusClass,
@@ -42,25 +42,25 @@ func (r *renderer) page(name string) (*template.Template, error) {
 		"humanSize":       humanSize,
 		"runDuration":     runDuration,
 	})
-	if _, err := t.ParseFS(
+	if _, err := tmpl.ParseFS(
 		templateFS,
 		"templates/layout.html",
 		"templates/"+name+".html",
 	); err != nil {
 		return nil, err
 	}
-	r.sets[name] = t
-	return t, nil
+	r.sets[name] = tmpl
+	return tmpl, nil
 }
 
 // render executes the named page's template set against data, writing the full
 // HTML document to w.
 func (r *renderer) render(w io.Writer, page string, data any) error {
-	t, err := r.page(page)
+	tmpl, err := r.page(page)
 	if err != nil {
 		return err
 	}
-	return t.ExecuteTemplate(w, "layout.html", data)
+	return tmpl.ExecuteTemplate(w, "layout.html", data)
 }
 
 // faviconPath returns the URL path to a snapshot's favicon in the archive.
@@ -70,24 +70,24 @@ func faviconPath(timestamp int64) string {
 
 // timeAgo renders a human-readable relative time string, e.g. "3 minutes ago".
 func timeAgo(timestamp int64) string {
-	d := time.Since(time.UnixMicro(timestamp))
+	duration := time.Since(time.UnixMicro(timestamp))
 	switch {
-	case d < time.Minute:
+	case duration < time.Minute:
 		return "just now"
-	case d < time.Hour:
-		m := int(d.Minutes())
-		if m == 1 {
+	case duration < time.Hour:
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
 			return "1 minute ago"
 		}
-		return fmt.Sprintf("%d minutes ago", m)
-	case d < 24*time.Hour:
-		h := int(d.Hours())
-		if h == 1 {
+		return fmt.Sprintf("%d minutes ago", minutes)
+	case duration < 24*time.Hour:
+		hours := int(duration.Hours())
+		if hours == 1 {
 			return "1 hour ago"
 		}
-		return fmt.Sprintf("%d hours ago", h)
+		return fmt.Sprintf("%d hours ago", hours)
 	default:
-		day := int(d.Hours()) / 24
+		day := int(duration.Hours()) / 24
 		if day == 1 {
 			return "1 day ago"
 		}
@@ -114,8 +114,8 @@ func runDuration(startedAt, finishedAt int64) string {
 	if startedAt == 0 || finishedAt == 0 || finishedAt < startedAt {
 		return ""
 	}
-	d := time.Duration(finishedAt-startedAt) * time.Microsecond
-	return fmt.Sprintf("%ds", int64(d.Round(time.Second).Seconds()))
+	duration := time.Duration(finishedAt-startedAt) * time.Microsecond
+	return fmt.Sprintf("%ds", int64(duration.Round(time.Second).Seconds()))
 }
 
 // statusClass returns the Tailwind badge classes for an extractor run status.

@@ -30,9 +30,9 @@ func (d *DB) CreateSnapshot(ctx context.Context, url string, timestamp int64) (i
 	return id, nil
 }
 
-// execer is satisfied by both *sql.DB and *sql.Tx, letting the upsert SQL run
+// sqlExecer is satisfied by both *sql.DB and *sql.Tx, letting the upsert SQL run
 // either standalone or inside an import transaction.
-type execer interface {
+type sqlExecer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
@@ -59,7 +59,7 @@ func UpsertSnapshotTx(ctx context.Context, tx *sql.Tx, entry archive.IndexEntry)
 	return nil
 }
 
-func upsertSnapshot(ctx context.Context, db execer, entry archive.IndexEntry) error {
+func upsertSnapshot(ctx context.Context, db sqlExecer, entry archive.IndexEntry) error {
 	var titleArg any
 	if entry.Title != "" {
 		titleArg = entry.Title

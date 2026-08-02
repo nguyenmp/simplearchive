@@ -47,17 +47,17 @@ func TestUpdateSnapshot_setsTitle(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000000
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	const timestamp int64 = 1700000000000000
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
-	if err := db.UpdateSnapshot(context.Background(), ts, "Example"); err != nil {
+	if err := db.UpdateSnapshot(context.Background(), timestamp, "Example"); err != nil {
 		t.Fatalf("UpdateSnapshot: %v", err)
 	}
 
 	var title any
 	if err := db.db.QueryRowContext(context.Background(),
-		"SELECT title FROM snapshots WHERE timestamp = ?", ts,
+		"SELECT title FROM snapshots WHERE timestamp = ?", timestamp,
 	).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -74,17 +74,17 @@ func TestUpdateSnapshot_nullTitleWhenEmpty(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1700000000000001
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	const timestamp int64 = 1700000000000001
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
-	if err := db.UpdateSnapshot(context.Background(), ts, ""); err != nil {
+	if err := db.UpdateSnapshot(context.Background(), timestamp, ""); err != nil {
 		t.Fatalf("UpdateSnapshot: %v", err)
 	}
 
 	var title any
 	if err := db.db.QueryRowContext(context.Background(),
-		"SELECT title FROM snapshots WHERE timestamp = ?", ts).Scan(&title); err != nil {
+		"SELECT title FROM snapshots WHERE timestamp = ?", timestamp).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if title != nil {
@@ -113,13 +113,13 @@ func TestUpsertSnapshot_insertsNewRow(t *testing.T) {
 	}
 	defer db.Close()
 
-	e := archive.IndexEntry{
+	entry := archive.IndexEntry{
 		Timestamp:  1728277530511000,
 		URL:        "https://example.com",
 		Title:      "Example",
 		IsArchived: true,
 	}
-	if err := db.UpsertSnapshot(context.Background(), e); err != nil {
+	if err := db.UpsertSnapshot(context.Background(), entry); err != nil {
 		t.Fatalf("UpsertSnapshot: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func TestUpsertSnapshot_insertsNewRow(t *testing.T) {
 	var createdAt, updatedAt int64
 	if err := db.db.QueryRowContext(context.Background(),
 		"SELECT url, title, created_at, updated_at FROM snapshots WHERE timestamp = ?",
-		e.Timestamp,
+		entry.Timestamp,
 	).Scan(&url, &title, &createdAt, &updatedAt); err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -137,11 +137,11 @@ func TestUpsertSnapshot_insertsNewRow(t *testing.T) {
 	if title != "Example" {
 		t.Errorf("title = %q, want Example", title)
 	}
-	if createdAt != e.Timestamp {
-		t.Errorf("created_at = %d, want %d", createdAt, e.Timestamp)
+	if createdAt != entry.Timestamp {
+		t.Errorf("created_at = %d, want %d", createdAt, entry.Timestamp)
 	}
-	if updatedAt != e.Timestamp {
-		t.Errorf("updated_at = %d, want %d", updatedAt, e.Timestamp)
+	if updatedAt != entry.Timestamp {
+		t.Errorf("updated_at = %d, want %d", updatedAt, entry.Timestamp)
 	}
 }
 
@@ -177,24 +177,24 @@ func TestUpsertSnapshot_isIdempotentAndPreservesCreatedAt(t *testing.T) {
 	}
 	defer db.Close()
 
-	const ts int64 = 1728277530511000
-	first := archive.IndexEntry{Timestamp: ts, URL: "https://old.example.com", Title: "Old", IsArchived: true}
+	const timestamp int64 = 1728277530511000
+	first := archive.IndexEntry{Timestamp: timestamp, URL: "https://old.example.com", Title: "Old", IsArchived: true}
 	if err := db.UpsertSnapshot(context.Background(), first); err != nil {
 		t.Fatalf("UpsertSnapshot (1): %v", err)
 	}
 	var createdAtAfterFirst int64
 	_ = db.db.QueryRowContext(context.Background(),
-		"SELECT created_at FROM snapshots WHERE timestamp = ?", ts).Scan(&createdAtAfterFirst)
+		"SELECT created_at FROM snapshots WHERE timestamp = ?", timestamp).Scan(&createdAtAfterFirst)
 
 	// Re-import with refreshed fields; created_at must not change.
-	second := archive.IndexEntry{Timestamp: ts, URL: "https://new.example.com", Title: "New", IsArchived: true}
+	second := archive.IndexEntry{Timestamp: timestamp, URL: "https://new.example.com", Title: "New", IsArchived: true}
 	if err := db.UpsertSnapshot(context.Background(), second); err != nil {
 		t.Fatalf("UpsertSnapshot (2): %v", err)
 	}
 
 	var count, url, title string
 	if err := db.db.QueryRowContext(context.Background(),
-		"SELECT printf('%d', count(*)), url, title FROM snapshots WHERE timestamp = ?", ts,
+		"SELECT printf('%d', count(*)), url, title FROM snapshots WHERE timestamp = ?", timestamp,
 	).Scan(&count, &url, &title); err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestUpsertSnapshot_isIdempotentAndPreservesCreatedAt(t *testing.T) {
 
 	var createdAtAfterSecond int64
 	_ = db.db.QueryRowContext(context.Background(),
-		"SELECT created_at FROM snapshots WHERE timestamp = ?", ts).Scan(&createdAtAfterSecond)
+		"SELECT created_at FROM snapshots WHERE timestamp = ?", timestamp).Scan(&createdAtAfterSecond)
 	if createdAtAfterSecond != createdAtAfterFirst {
 		t.Errorf("created_at changed: %d -> %d", createdAtAfterFirst, createdAtAfterSecond)
 	}

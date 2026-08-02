@@ -21,13 +21,13 @@ func (c *CLI) runServe(ctx context.Context, args []string) int {
 		addr = server.DefaultAddr()
 	}
 
-	s := &server.Server{
+	srv := &server.Server{
 		Logger:      c.Logger,
 		DB:          c.DB,
 		ArchiveRoot: c.ArchiveRoot,
 		Addr:        addr,
 	}
-	if err := s.Run(ctx); err != nil {
+	if err := srv.Run(ctx); err != nil {
 		c.Logger.Error("serve: run", "err", err)
 		fmt.Fprintf(c.Stderr, "serve: %v\n", err)
 		return 1

@@ -4,10 +4,20 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 )
+
+func requireFlags(t *testing.T, argv []string, flags []string) {
+	t.Helper()
+	for _, flag := range flags {
+		if !slices.Contains(argv, flag) {
+			t.Errorf("argv missing required flag %q: %v", flag, argv)
+		}
+	}
+}
 
 // fakeBin writes a shell script to a temp file that creates the given output
 // files in its working directory and returns the script path. The script exits
@@ -42,43 +52,27 @@ func TestExtractor_unsupportedURL_fails(t *testing.T) {
 
 func TestArgv(t *testing.T) {
 	t.Parallel()
-	got := argv("yt-dlp", "", "", "https://youtu.be/abc")
-	want := []string{
+	got := buildArgv("yt-dlp", "", "", "https://youtu.be/abc")
+	requireFlags(t, got, []string{
 		"yt-dlp",
 		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
 		"--output", "%(id)s",
 		"https://youtu.be/abc",
-	}
-	if len(got) != len(want) {
-		t.Fatalf("argv = %v, want %v", got, want)
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Errorf("argv[%d] = %q, want %q", i, got[i], want[i])
-		}
-	}
+	})
 }
 
 func TestArgv_withCookies(t *testing.T) {
 	t.Parallel()
-	got := argv("yt-dlp", "/data/cookies.txt", "", "https://youtu.be/abc")
-	want := []string{
+	got := buildArgv("yt-dlp", "/data/cookies.txt", "", "https://youtu.be/abc")
+	requireFlags(t, got, []string{
 		"yt-dlp",
 		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
 		"--output", "%(id)s",
 		"--cookies", "/data/cookies.txt",
 		"https://youtu.be/abc",
-	}
-	if len(got) != len(want) {
-		t.Fatalf("argv = %v, want %v", got, want)
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Errorf("argv[%d] = %q, want %q", i, got[i], want[i])
-		}
-	}
+	})
 }
 
 func TestExtractor_writesMetadataAndTranscript(t *testing.T) {

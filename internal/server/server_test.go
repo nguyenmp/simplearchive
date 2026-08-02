@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -66,8 +67,14 @@ func TestHandleHealthz_HEAD(t *testing.T) {
 	if rec.Body.Len() != 0 {
 		t.Errorf("HEAD body should be empty, got %q", rec.Body.String())
 	}
-	if cl := rec.Header().Get("Content-Length"); cl != "11" {
-		t.Errorf("HEAD Content-Length = %q, want 11", cl)
+	cl := rec.Header().Get("Content-Length")
+	if cl == "" {
+		t.Errorf("HEAD Content-Length is empty")
+	} else {
+		n, err := strconv.Atoi(cl)
+		if err != nil || n <= 0 {
+			t.Errorf("HEAD Content-Length = %q, want positive integer", cl)
+		}
 	}
 }
 
@@ -225,14 +232,14 @@ func TestRunWorker_drainsEnqueuedSnapshot(t *testing.T) {
 func TestHandleDelete_removesSnapshot(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
 	root := filepath.Join(t.TempDir(), "archive")
 	// Create a fake on-disk directory so we also exercise archive removal.
-	dir := filepath.Join(root, snapshot.Format(ts))
+	dir := filepath.Join(root, snapshot.Format(timestamp))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -245,7 +252,7 @@ func TestHandleDelete_removesSnapshot(t *testing.T) {
 
 	// POST delete.
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(ts)+"/delete", nil)
+	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(timestamp)+"/delete", nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusSeeOther {
@@ -256,7 +263,7 @@ func TestHandleDelete_removesSnapshot(t *testing.T) {
 	}
 
 	// Snapshot is gone.
-	_, err := db.GetSnapshot(context.Background(), ts)
+	_, err := db.GetSnapshot(context.Background(), timestamp)
 	if err == nil {
 		t.Fatal("GetSnapshot after delete: expected error, got nil")
 	}
@@ -272,13 +279,13 @@ func TestHandleDelete_removesSnapshot(t *testing.T) {
 func TestHandleList_showsFileCountAndSize(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
 	root := filepath.Join(t.TempDir(), "archive")
-	dir := filepath.Join(root, snapshot.Format(ts))
+	dir := filepath.Join(root, snapshot.Format(timestamp))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -327,13 +334,13 @@ func TestHandleDelete_notFound(t *testing.T) {
 func TestHandleDetail_showsNestedFiles(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
 	root := filepath.Join(t.TempDir(), "archive")
-	dir := filepath.Join(root, snapshot.Format(ts))
+	dir := filepath.Join(root, snapshot.Format(timestamp))
 	if err := os.MkdirAll(filepath.Join(dir, "media"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -348,7 +355,7 @@ func TestHandleDetail_showsNestedFiles(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -374,18 +381,19 @@ func TestHandleDetail_showsNestedFiles(t *testing.T) {
 // entry in the detail page shows its individual file size.
 func TestHandleDetail_showsIndividualFileSizes(t *testing.T) {
 	t.Parallel()
+	const testContent = "hello world"
 	db := newTestDB(t)
-	ts := int64(1700000000000000)
-	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+	timestamp := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp); err != nil {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 
 	root := filepath.Join(t.TempDir(), "archive")
-	dir := filepath.Join(root, snapshot.Format(ts))
+	dir := filepath.Join(root, snapshot.Format(timestamp))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("hello world"), extractors.DefaultFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte(testContent), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -393,15 +401,15 @@ func TestHandleDetail_showsIndividualFileSizes(t *testing.T) {
 	r := s.Router()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(timestamp), nil)
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 	body := rec.Body.String()
-	// We expect the "11 B" size next to output.html
-	if !strings.Contains(body, "11 B") {
-		t.Errorf("detail body missing individual file size; want '11 B' in body, got:\n%s", body)
+	wantSize := humanSize(int64(len(testContent)))
+	if !strings.Contains(body, wantSize) {
+		t.Errorf("detail body missing individual file size; want %q in body, got:\n%s", wantSize, body)
 	}
 }

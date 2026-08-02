@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/page"
-	cdp "github.com/chromedp/chromedp"
+	chromedplib "github.com/chromedp/chromedp"
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 )
 
@@ -28,7 +28,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		return nil, err
 	}
 	defer cancel()
-	taskCtx, cancel := cdp.NewContext(allocCtx)
+	taskCtx, cancel := chromedplib.NewContext(allocCtx)
 	defer cancel()
 	timeout := e.timeout()
 	taskCtx, cancel = context.WithTimeout(taskCtx, timeout)
@@ -72,15 +72,15 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 }
 
 func (e Extractor) captureOutputs(ctx context.Context, pageURL string) (screenshot []byte, pdf []byte, dom string, err error) {
-	err = cdp.Run(ctx,
-		cdp.Navigate(pageURL),
-		cdp.FullScreenshot(&screenshot, 100),
-		cdp.ActionFunc(func(ctx context.Context) error {
+	err = chromedplib.Run(ctx,
+		chromedplib.Navigate(pageURL),
+		chromedplib.FullScreenshot(&screenshot, 100),
+		chromedplib.ActionFunc(func(ctx context.Context) error {
 			var perr error
 			pdf, _, perr = page.PrintToPDF().WithPrintBackground(true).Do(ctx)
 			return perr
 		}),
-		cdp.OuterHTML("html", &dom),
+		chromedplib.OuterHTML("html", &dom),
 	)
 	return
 }
@@ -135,7 +135,7 @@ func (e Extractor) allocator(ctx context.Context, pageURL string) (context.Conte
 		// NoModifyURL: chromedp's default URL resolution (GET /json/version on
 		// the same port) does not work against CDP proxies like
 		// sockpuppetbrowser, which speak raw websocket on the given URL.
-		allocCtx, cancel := cdp.NewRemoteAllocator(ctx, wsURL, cdp.NoModifyURL)
+		allocCtx, cancel := chromedplib.NewRemoteAllocator(ctx, wsURL, chromedplib.NoModifyURL)
 		return allocCtx, cancel, []string{"chromedp", wsURL, pageURL}, nil
 	}
 
@@ -144,14 +144,14 @@ func (e Extractor) allocator(ctx context.Context, pageURL string) (context.Conte
 		slog.Warn("chromedp: skipping, browser binary not found", "bin", bin, "err", err)
 		return nil, nil, nil, extractors.ErrSkipped
 	}
-	opts := append(cdp.DefaultExecAllocatorOptions[:],
-		cdp.ExecPath(bin),
-		cdp.NoSandbox, // containers typically run as root; sandbox needs a user namespace
+	opts := append(chromedplib.DefaultExecAllocatorOptions[:],
+		chromedplib.ExecPath(bin),
+		chromedplib.NoSandbox,
 	)
 	if e.ProxyURL != "" {
-		opts = append(opts, cdp.ProxyServer(e.ProxyURL))
+		opts = append(opts, chromedplib.ProxyServer(e.ProxyURL))
 	}
-	allocCtx, cancel := cdp.NewExecAllocator(ctx, opts...)
+	allocCtx, cancel := chromedplib.NewExecAllocator(ctx, opts...)
 	return allocCtx, cancel, []string{bin, "--headless", "--no-sandbox", pageURL}, nil
 }
 
@@ -169,9 +169,9 @@ func remoteWSURL(base, proxyURL string) (string, error) {
 		return "", fmt.Errorf("chromedp: remote URL %q must use ws:// or wss:// scheme", base)
 	}
 	if proxyURL != "" {
-		q := u.Query()
-		q.Set("--proxy-server", proxyURL)
-		u.RawQuery = q.Encode()
+		queryParams := u.Query()
+		queryParams.Set("--proxy-server", proxyURL)
+		u.RawQuery = queryParams.Encode()
 	}
 	return u.String(), nil
 }

@@ -2,7 +2,6 @@ package subproc
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 	"testing"
 )
@@ -74,8 +73,5 @@ func TestRun_contextCancel_returnsError(t *testing.T) {
 	_, err := Run(ctx, "", "sh", "-c", "sleep 10")
 	if err == nil {
 		t.Fatal("Run with cancelled context returned nil error")
-	}
-	if execErr := (&exec.ExitError{}); execErr == nil {
-		t.Error("sanity: nil ExitError reference")
 	}
 }
