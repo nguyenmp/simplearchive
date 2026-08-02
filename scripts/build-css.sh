@@ -1,8 +1,12 @@
 #!/bin/sh
 # build-css.sh — compile the tailwind stylesheet for the server's embedded
-# static assets. Run from the repo root inside the dev container:
+# static assets. Build the dev image first if you don't have it:
 #
-#   docker run --rm -v "$PWD:/app" -w /app simplearchive-dev ./scripts/build-css.sh
+#   make dev-image
+#
+# Then run from the repo root inside the dev container:
+#
+#   docker run --rm -v "$PWD:/app" -w /app simplearchive-dev make css
 #
 # The generated tailwind.css is committed so the repo builds offline; re-run
 # this whenever templates change their class names.

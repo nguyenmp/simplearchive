@@ -1,7 +1,13 @@
-.PHONY: css test vet build
+.PHONY: css test vet build dev-image
 
-# Compile the tailwind stylesheet into the embedded assets. Run inside the dev
-# container: docker run --rm -v "$$PWD:/app" -w /app simplearchive-dev make css
+# Build the dev image locally:
+#   make dev-image
+# Then compile CSS inside it:
+#   docker run --rm -v "$PWD:/app" -w /app simplearchive-dev make css
+dev-image:
+	docker build --target dev -t simplearchive-dev .
+
+# Compile the tailwind stylesheet into the embedded assets.
 css:
 	./scripts/build-css.sh
 
