@@ -105,6 +105,8 @@ type detailData struct {
 	// FilePaths maps an on-disk filename to its URL path, so extractor
 	// outputs can link straight to the archived file.
 	FilePaths map[string]string
+	// FileSizes maps an on-disk filename to its size (bytes) for display.
+	FileSizes map[string]int64
 	// OtherFiles are on-disk files not claimed by any extractor output
 	// (e.g. index.json).
 	OtherFiles []fileLink
@@ -161,6 +163,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data.FilePaths = make(map[string]string)
+	data.FileSizes = make(map[string]int64)
 	if err := filepath.WalkDir(dir, func(full string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
@@ -170,17 +173,17 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		basename := filepath.Base(rel)
 		data.FilePaths[basename] = urlPath
 		data.FilePaths[rel] = urlPath
+		var size int64
+		if fi, err := d.Info(); err == nil {
+			size = fi.Size()
+			data.TotalSize += size
+			data.FileSizes[basename] = size
+			data.FileSizes[rel] = size
+		}
 		if !claimed[basename] {
-			link := fileLink{Name: rel, Path: urlPath}
-			if fi, err := d.Info(); err == nil {
-				link.Size = fi.Size()
-			}
-			data.OtherFiles = append(data.OtherFiles, link)
+			data.OtherFiles = append(data.OtherFiles, fileLink{Name: rel, Path: urlPath, Size: size})
 		}
 		data.FileCount++
-		if fi, err := d.Info(); err == nil {
-			data.TotalSize += fi.Size()
-		}
 		return nil
 	}); err != nil {
 		s.Logger.Error("detail: walk dir", "err", err)

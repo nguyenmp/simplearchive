@@ -46,7 +46,10 @@
 						{{if .Filename}}
 							<span class="text-gray-400">→</span>
 							{{if index $.FilePaths .Filename}}
-								<a href="{{index $.FilePaths .Filename}}" class="text-blue-600 hover:underline">{{.Filename}}</a>
+								<div class="flex items-baseline gap-2">
+									<a href="{{index $.FilePaths .Filename}}" class="text-blue-600 hover:underline">{{.Filename}}</a>
+									{{if index $.FileSizes .Filename}}<span class="text-gray-400 text-xs">{{humanSize (index $.FileSizes .Filename)}}</span>{{end}}
+								</div>
 							{{else}}
 								<span>{{.Filename}}</span>
 							{{end}}
@@ -66,11 +69,11 @@
 	{{if .OtherFiles}}
 	<section class="mt-6">
 		<h2 class="text-lg font-semibold mb-2">{{if .Runs}}Other files{{else}}Archived files{{end}} <span class="text-sm font-normal text-gray-500">({{.FileCount}} files, {{humanSize .TotalSize}})</span></h2>
-		<ul class="text-sm flex flex-wrap gap-x-4 gap-y-1">
+		<ul class="text-sm flex flex-wrap gap-x-4 gap-y-2">
 		{{range .OtherFiles}}
-			<li class="flex items-baseline gap-1">
+			<li class="flex items-center gap-1">
 				<a href="{{.Path}}" class="text-blue-600 hover:underline font-mono">{{.Name}}</a>
-				<span class="text-xs text-gray-400">{{humanSize .Size}}</span>
+				<span class="text-xs text-gray-400 ml-0.5">{{humanSize .Size}}</span>
 			</li>
 		{{end}}
 		</ul>
