@@ -249,6 +249,11 @@ func Scan(root string) ([]IndexEntry, error) {
 			slog.Debug("archive.Scan: skipping unreadable index", "path", p, "err", err)
 			continue
 		}
+		if entry.Title == "" {
+			if t := BestTitle(filepath.Dir(p)); t != "" {
+				entry.Title = t
+			}
+		}
 		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool {

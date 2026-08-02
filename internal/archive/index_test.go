@@ -225,6 +225,84 @@ func TestReadIndex_missingFileErrors(t *testing.T) {
 	}
 }
 
+func TestScan_fallsBackToBestTitle(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	// Create a snapshot with an empty title in index.json but a mercury title available.
+	ts := int64(1700000000000003)
+	dir := filepath.Join(root, snapshot.Format(ts))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := WriteIndex(IndexData{
+		Timestamp: ts,
+		URL:       "https://example.com",
+		Dir:       dir,
+		Outputs:   []string{"output.html"},
+	}); err != nil {
+		t.Fatalf("WriteIndex: %v", err)
+	}
+
+	// Write mercury/article.json with a title
+	if err := os.MkdirAll(filepath.Join(dir, "mercury"), 0o755); err != nil {
+		t.Fatalf("mkdir mercury: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "mercury", "article.json"), []byte(`{"title":"Fallback Title"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(got))
+	}
+	if got[0].Title != "Fallback Title" {
+		t.Errorf("title = %q, want Fallback Title", got[0].Title)
+	}
+}
+
+func TestScan_preservesNonEmptyTitle(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	// Create a snapshot with an explicit title in index.json.
+	ts := int64(1700000000000004)
+	dir := filepath.Join(root, snapshot.Format(ts))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := WriteIndex(IndexData{
+		Timestamp: ts,
+		URL:       "https://example.com",
+		Title:     "Explicit Title",
+		Dir:       dir,
+		Outputs:   []string{"output.html"},
+	}); err != nil {
+		t.Fatalf("WriteIndex: %v", err)
+	}
+
+	// Write mercury/article.json with a different title — should be ignored.
+	if err := os.MkdirAll(filepath.Join(dir, "mercury"), 0o755); err != nil {
+		t.Fatalf("mkdir mercury: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "mercury", "article.json"), []byte(`{"title":"Mercury Title"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(got))
+	}
+	if got[0].Title != "Explicit Title" {
+		t.Errorf("title = %q, want Explicit Title", got[0].Title)
+	}
+}
 func TestScan_collectsAndSortsSnapshots(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

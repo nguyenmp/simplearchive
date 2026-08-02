@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
@@ -140,7 +138,7 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 			r.Status = extractors.StatusRunning
 		}
 		status, errMsg := runOne(ctx, db, registry, r, snap, dir)
-		title := bestTitle(dir)
+		title := archive.BestTitle(dir)
 		if title != "" && title != snap.Title {
 			if err := db.UpdateSnapshot(ctx, snap.Timestamp, title); err != nil {
 				slog.Warn("ingest: update title", "err", err)
@@ -271,31 +269,6 @@ func runsToSteps(runs []meta.ExtractorRun) []extractors.Step {
 		}
 	}
 	return out
-}
-
-// bestTitle returns the best available title for the snapshot in dir, trying
-// sources in priority order: yt-dlp info.json, obelisk singlefile HTML, then
-// wget DOM HTML. The first non-empty title wins; empty is returned when no
-// source has a title.
-func bestTitle(dir string) string {
-	if matches, _ := filepath.Glob(filepath.Join(dir, "*.info.json")); len(matches) > 0 {
-		if data, err := os.ReadFile(matches[0]); err == nil {
-			if t := archive.ParseInfoJSONTitle(data); t != "" {
-				return t
-			}
-		}
-	}
-	if html, err := os.ReadFile(filepath.Join(dir, obelisk.OutputFile)); err == nil {
-		if t := archive.ParseTitle(html); t != "" {
-			return t
-		}
-	}
-	if html, err := os.ReadFile(filepath.Join(dir, wget.OutputFile)); err == nil {
-		if t := archive.ParseTitle(html); t != "" {
-			return t
-		}
-	}
-	return ""
 }
 
 func nowMicros() int64 { return time.Now().UnixMicro() }
