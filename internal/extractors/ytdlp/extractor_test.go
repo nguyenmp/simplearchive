@@ -2,7 +2,6 @@ package ytdlp
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,15 +21,22 @@ func fakeBin(t *testing.T, body string) string {
 	return path
 }
 
-func TestExtractor_nonVideoURL_skips(t *testing.T) {
+func TestExtractor_unsupportedURL_fails(t *testing.T) {
 	t.Parallel()
+	bin := fakeBin(t, "exit 1\n")
 	dir := t.TempDir()
-	steps, err := Extractor{}.Run(context.Background(), "https://example.com/notavideo", dir)
-	if !errors.Is(err, extractors.ErrSkipped) {
-		t.Fatalf("err = %v, want ErrSkipped", err)
+	steps, err := Extractor{Bin: bin}.Run(context.Background(), "https://example.com/notavideo", dir)
+	if err == nil {
+		t.Fatal("Run on unsupported URL returned nil error")
 	}
-	if steps != nil {
-		t.Fatalf("steps = %v, want nil", steps)
+	if len(steps) != 2 {
+		t.Fatalf("got %d steps, want 2", len(steps))
+	}
+	if steps[0].Status != extractors.StatusFailed {
+		t.Errorf("meta status = %q, want failed", steps[0].Status)
+	}
+	if steps[1].Status != extractors.StatusFailed {
+		t.Errorf("transcript status = %q, want failed", steps[1].Status)
 	}
 }
 

@@ -1,13 +1,12 @@
-// Package ytdlp wraps the yt-dlp command-line tool to archive a video URL's
-// metadata and transcript (no media). It is host-gated: non-video URLs are
-// skipped so the rest of the pipeline is not polluted with yt-dlp failures.
+// Package ytdlp wraps the yt-dlp command-line tool to archive a URL's
+// metadata and transcript (no media). All URLs are passed to yt-dlp; unsupported
+// URLs will result in a failed step rather than being skipped.
 package ytdlp
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"time"
 
@@ -15,18 +14,7 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/subproc"
 )
 
-// videoHosts is the set of hosts yt-dlp is run for. Other hosts skip the
-// extractor entirely. Add more as needed.
-var videoHosts = map[string]bool{
-	"youtube.com":     true,
-	"www.youtube.com": true,
-	"youtu.be":        true,
-	"m.youtube.com":   true,
-	"vimeo.com":       true,
-	"www.vimeo.com":   true,
-}
-
-// Extractor archives a video URL's metadata and transcript via yt-dlp.
+// Extractor archives a URL's metadata and transcript via yt-dlp.
 type Extractor struct {
 	// Bin is the yt-dlp binary path; it defaults to "yt-dlp" when empty. Tests
 	// override it with a fake script.
@@ -43,14 +31,9 @@ func (e Extractor) bin() string {
 	return "yt-dlp"
 }
 
-// Run archives url's metadata and transcript into dir. Non-video URLs return
-// ErrSkipped with no steps. A failed metadata fetch returns the steps recorded
-// so far alongside the error (best-effort).
+// Run archives url's metadata and transcript into dir. A failed metadata fetch
+// returns the steps recorded so far alongside the error (best-effort).
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
-	if !isVideoURL(pageURL) {
-		return nil, extractors.ErrSkipped
-	}
-
 	start := time.Now()
 	argv := argv(e.bin(), pageURL)
 	_, runErr := subproc.Run(ctx, dir, argv[0], argv[1:]...)
@@ -93,15 +76,6 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		return steps, meta.Err
 	}
 	return steps, nil
-}
-
-// isVideoURL reports whether pageURL's host is a known video site.
-func isVideoURL(pageURL string) bool {
-	u, err := url.Parse(pageURL)
-	if err != nil || u.Host == "" {
-		return false
-	}
-	return videoHosts[u.Hostname()]
 }
 
 // argv builds the yt-dlp invocation recorded in index.json and run by Run. The
