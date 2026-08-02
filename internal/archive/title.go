@@ -3,13 +3,14 @@ package archive
 import (
 	"bytes"
 	"encoding/json"
+	"html"
 	"strings"
 )
 
 // ParseTitle extracts the contents of the first <title>...</title> element
 // from an HTML document. It returns an empty string if no title is found.
-func ParseTitle(html []byte) string {
-	lower := bytes.ToLower(html)
+func ParseTitle(doc []byte) string {
+	lower := bytes.ToLower(doc)
 	start := bytes.Index(lower, []byte("<title"))
 	if start < 0 {
 		return ""
@@ -23,7 +24,7 @@ func ParseTitle(html []byte) string {
 	if end < 0 {
 		return ""
 	}
-	return strings.TrimSpace(string(html[contentStart : contentStart+end]))
+	return strings.TrimSpace(html.UnescapeString(string(doc[contentStart : contentStart+end])))
 }
 
 // titleOrEmpty trims the title and reports whether it was non-empty.

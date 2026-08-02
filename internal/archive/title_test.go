@@ -19,6 +19,9 @@ func TestParseTitle_extractsTitle(t *testing.T) {
 		{"none", `<html><body>no title here</body></html>`, ""},
 		{"empty", `<title></title>`, ""},
 		{"no close", `<title>unclosed`, ""},
+		{"numeric entities", `<title>The rise of &#39;conspicuous waiting&#39;</title>`, "The rise of 'conspicuous waiting'"},
+		{"named entities", `<title>Foo &amp; Bar &quot;quoted&quot;</title>`, `Foo & Bar "quoted"`},
+		{"hex entities", `<title>It&#x27;s working</title>`, "It's working"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
