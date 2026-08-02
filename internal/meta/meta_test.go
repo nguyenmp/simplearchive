@@ -71,8 +71,8 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 5 {
-		t.Fatalf("user_version = %d, want 5", got)
+	if got := userVersion(t, db); got != 6 {
+		t.Fatalf("user_version = %d, want 6", got)
 	}
 	if _, err := db.Exec("SELECT 1 FROM snapshots LIMIT 1"); err != nil {
 		t.Fatalf("snapshots table not queryable after fresh open: %v", err)
@@ -83,7 +83,7 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	if _, err := db.Exec("SELECT 1 FROM step_outputs LIMIT 1"); err != nil {
 		t.Fatalf("step_outputs table not queryable after fresh open: %v", err)
 	}
-	// v5 dropped snapshot-level status and is_archived.
+	// v6 added ON DELETE CASCADE to FKs, v5 dropped snapshot-level status and is_archived.
 	if _, err := db.Exec("SELECT status FROM snapshots LIMIT 1"); err == nil {
 		t.Errorf("snapshots.status column should have been dropped")
 	}
@@ -114,8 +114,8 @@ func TestMigrate_idempotent(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 5 {
-		t.Fatalf("user_version after reopen = %d, want 5", got)
+	if got := userVersion(t, db); got != 6 {
+		t.Fatalf("user_version after reopen = %d, want 6", got)
 	}
 }
 
@@ -188,8 +188,8 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 5 {
-		t.Fatalf("user_version = %d, want 5", got)
+			if got := userVersion(t, db); got != 6 {
+			t.Fatalf("user_version = %d, want 6", got)
 	}
 
 	var id int64
@@ -226,8 +226,8 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 5 {
-		t.Fatalf("user_version = %d, want 5", got)
+			if got := userVersion(t, db); got != 6 {
+			t.Fatalf("user_version = %d, want 6", got)
 	}
 
 	// One per-extractor run, grouped from the legacy "dom" output under "wget".
@@ -263,6 +263,65 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 	}
 	if filename != "output.html" {
 		t.Errorf("step_outputs.filename = %q, want output.html", filename)
+	}
+	assertNoFKViolations(t, db)
+}
+
+// TestMigrate_v6OnDeleteCascade verifies that deleting a snapshot removes its
+// extractor_runs and step_outputs automatically via ON DELETE CASCADE.
+func TestMigrate_v6OnDeleteCascade(t *testing.T) {
+	t.Parallel()
+	db, err := Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	const ts int64 = 1700000000000000
+	snapshotID, err := db.CreateSnapshot(ctx, "https://example.com", ts)
+	if err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	runID, err := db.InsertRun(ctx, ExtractorRun{
+		SnapshotID: snapshotID,
+		Extractor:  "wget",
+		Status:     "succeeded",
+		StartedAt:  ts,
+		FinishedAt: ts + 1000,
+	})
+	if err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
+	if _, err := db.InsertStepOutput(ctx, runID, StepOutput{
+		RunID:    runID,
+		Name:     "dom",
+		Filename: "output.html",
+		Status:   "succeeded",
+		StartTs:  ts,
+		EndTs:    ts + 500,
+	}); err != nil {
+		t.Fatalf("InsertStepOutput: %v", err)
+	}
+
+	// Deleting the snapshot should cascade to extractor_runs and step_outputs.
+	if _, err := db.ExecContext(ctx, "DELETE FROM snapshots WHERE id = ?", snapshotID); err != nil {
+		t.Fatalf("DELETE snapshot: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM extractor_runs WHERE snapshot_id = ?", snapshotID).Scan(&count); err != nil {
+		t.Fatalf("count extractor_runs: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("extractor_runs count = %d after snapshot delete, want 0", count)
+	}
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM step_outputs").Scan(&count); err != nil {
+		t.Fatalf("count step_outputs: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("step_outputs count = %d after snapshot delete, want 0", count)
 	}
 	assertNoFKViolations(t, db)
 }

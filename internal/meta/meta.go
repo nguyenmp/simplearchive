@@ -34,12 +34,16 @@ var schemaV4 string
 //go:embed schema_v5_drop_snapshot_status.sql
 var schemaV5 string
 
+//go:embed schema_v6_on_delete_cascade.sql
+var schemaV6 string
+
 var migrations = map[int]string{
 	1: schemaV1,
 	2: schemaV2,
 	3: schemaV3,
 	4: schemaV4,
 	5: schemaV5,
+	6: schemaV6,
 }
 
 func dsn(path string) string {
