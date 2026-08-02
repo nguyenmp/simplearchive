@@ -346,3 +346,39 @@ func TestHandleDetail_showsNestedFiles(t *testing.T) {
 		t.Errorf("detail body missing size; want human size in body")
 	}
 }
+
+// TestHandleDetail_showsIndividualFileSizes verifies that each OtherFiles
+// entry in the detail page shows its individual file size.
+func TestHandleDetail_showsIndividualFileSizes(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	root := filepath.Join(t.TempDir(), "archive")
+	dir := filepath.Join(root, snapshot.Format(ts))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("hello world"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	// We expect the "11 B" size next to output.html
+	if !strings.Contains(body, "11 B") {
+		t.Errorf("detail body missing individual file size; want '11 B' in body, got:\n%s", body)
+	}
+}

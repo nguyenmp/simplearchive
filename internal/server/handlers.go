@@ -115,6 +115,7 @@ type detailData struct {
 type fileLink struct {
 	Name string
 	Path string // URL path under /archive/{timestamp}/
+	Size int64  // bytes
 }
 
 // handleDetail renders GET /{timestamp}: a single snapshot's metadata plus
@@ -170,7 +171,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		data.FilePaths[basename] = urlPath
 		data.FilePaths[rel] = urlPath
 		if !claimed[basename] {
-			data.OtherFiles = append(data.OtherFiles, fileLink{Name: rel, Path: urlPath})
+			link := fileLink{Name: rel, Path: urlPath}
+			if fi, err := d.Info(); err == nil {
+				link.Size = fi.Size()
+			}
+			data.OtherFiles = append(data.OtherFiles, link)
 		}
 		data.FileCount++
 		if fi, err := d.Info(); err == nil {
