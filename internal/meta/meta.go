@@ -95,7 +95,7 @@ func (d *DB) Close() error {
 	return d.DB.Close()
 }
 
-func (d *DB) migrate(ctx context.Context) error {
+func (d *DB) migrate(ctx context.Context) (retErr error) {
 	current, err := d.userVersion(ctx)
 	if err != nil {
 		return fmt.Errorf("read user_version: %w", err)
@@ -126,7 +126,9 @@ func (d *DB) migrate(ctx context.Context) error {
 		return fmt.Errorf("migrate: disable foreign_keys: %w", err)
 	}
 	defer func() {
-		_, _ = d.ExecContext(ctx, "PRAGMA foreign_keys=on")
+		if _, err := d.ExecContext(ctx, "PRAGMA foreign_keys=on"); err != nil && retErr == nil {
+			retErr = fmt.Errorf("migrate: re-enable foreign_keys: %w", err)
+		}
 	}()
 
 	for _, v := range pending {
