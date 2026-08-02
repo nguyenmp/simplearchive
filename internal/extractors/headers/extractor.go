@@ -41,7 +41,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	_, usedProxy, err := proxyutil.TryDirectThenProxy(directFn, proxyFn, e.ProxyURL)
 	end := time.Now()
 
-	step := extractors.NewStep("headers", OutputFile, start, end, err)
+	step := extractors.NewOutput("headers", OutputFile, start, end, err)
 	if err != nil && usedProxy {
 		step.Err = fmt.Errorf("headers %q %w", pageURL, err)
 	}

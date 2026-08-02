@@ -20,7 +20,7 @@ func (e DOMExtractor) Run(ctx context.Context, pageURL, dir string) ([]extractor
 	start := time.Now()
 	path, err := Fetch(ctx, pageURL, dir)
 	end := time.Now()
-	step := extractors.NewStep("dom", OutputFile, start, end, err)
+	step := extractors.NewOutput("dom", OutputFile, start, end, err)
 	step.Cmd = []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, OutputFile), pageURL}
 	if err != nil {
 		return []extractors.Step{step}, err
@@ -42,7 +42,7 @@ func (e FaviconExtractor) Run(ctx context.Context, pageURL, dir string) ([]extra
 	start := time.Now()
 	path, err := FetchFavicon(ctx, pageURL, dir)
 	end := time.Now()
-	step := extractors.NewStep("favicon", FaviconFile, start, end, err)
+	step := extractors.NewOutput("favicon", FaviconFile, start, end, err)
 	step.Cmd = faviconCmd(pageURL, dir)
 	if err != nil {
 		return []extractors.Step{step}, err

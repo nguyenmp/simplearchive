@@ -48,10 +48,10 @@ func RunObelisk(ctx context.Context, pageURL, dir, proxyURL, stepName, outputFil
 	end := time.Now()
 
 	if err != nil {
-		return []extractors.Step{extractors.NewStep(stepName, outputFile, start, end, err)}, err
+		return []extractors.Step{extractors.NewOutput(stepName, outputFile, start, end, err)}, err
 	}
 	if werr := os.WriteFile(filepath.Join(dir, outputFile), content, extractors.DefaultFilePerm); werr != nil {
-		return []extractors.Step{extractors.NewStep(stepName, outputFile, start, end, werr)}, werr
+		return []extractors.Step{extractors.NewOutput(stepName, outputFile, start, end, werr)}, werr
 	}
-	return []extractors.Step{extractors.NewStep(stepName, outputFile, start, end, nil)}, nil
+	return []extractors.Step{extractors.NewOutput(stepName, outputFile, start, end, nil)}, nil
 }

@@ -36,7 +36,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	if usedProxy {
 		proxyURL = e.ProxyURL
 	}
-	step := extractors.NewStep("curl", OutputFile, start, end, err)
+	step := extractors.NewOutput("curl", OutputFile, start, end, err)
 	step.Cmd = buildCmd(pageURL, dir, proxyURL)
 	if err != nil {
 		return []extractors.Step{step}, err

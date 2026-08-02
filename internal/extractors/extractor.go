@@ -32,11 +32,11 @@ const DefaultTimeout = 60 * time.Second
 // Callers treat it as a best-effort skip rather than a failure.
 var ErrSkipped = errors.New("extractor: skipped")
 
-// NewStep constructs a Step with the given name, filename, and time bracket,
+// NewOutput constructs a Step with the given name, filename, and time bracket,
 // setting Status to StatusSucceeded when err is nil and StatusFailed with Err
 // set when err is non-nil. Callers may override fields (e.g. Cmd) after
 // construction.
-func NewStep(name, filename string, start, end time.Time, err error) Step {
+func NewOutput(name, filename string, start, end time.Time, err error) Step {
 	s := Step{Name: name, Filename: filename, StartTs: start, EndTs: end}
 	if err != nil {
 		s.Status = StatusFailed

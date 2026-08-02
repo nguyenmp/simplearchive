@@ -149,9 +149,9 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 
 	end := start.Add(elapsed)
 	steps := []extractors.Step{
-		extractors.NewStep("screenshot"+e.FileSuffix, e.screenshotFile(), start, end, nil),
-		extractors.NewStep("pdf"+e.FileSuffix, e.pdfFile(), start, end, nil),
-		extractors.NewStep("chromedp_dom"+e.FileSuffix, e.domFile(), start, end, nil),
+		extractors.NewOutput("screenshot"+e.FileSuffix, e.screenshotFile(), start, end, nil),
+		extractors.NewOutput("pdf"+e.FileSuffix, e.pdfFile(), start, end, nil),
+		extractors.NewOutput("chromedp_dom"+e.FileSuffix, e.domFile(), start, end, nil),
 	}
 	for i := range steps {
 		steps[i].Cmd = cmd
