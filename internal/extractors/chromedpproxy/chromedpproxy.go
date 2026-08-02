@@ -6,6 +6,7 @@ package chromedpproxy
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -70,10 +71,30 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		tmpPath := filepath.Join(tmpDir, origFile)
 		dstPath := filepath.Join(dir, nameMap[origFile])
 		if _, statErr := os.Stat(tmpPath); statErr == nil {
-			if renameErr := os.Rename(tmpPath, dstPath); renameErr != nil {
-				_ = os.Link(tmpPath, dstPath)
+			if copyErr := copyFile(tmpPath, dstPath); copyErr != nil {
+				steps[i].Status = extractors.StatusFailed
+				steps[i].Err = copyErr
 			}
 		}
 	}
 	return steps, err
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
