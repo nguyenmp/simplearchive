@@ -202,6 +202,7 @@ M4 — Production
 M5 — Reliability + config
 - [ ] Retry/backoff/DLQ.
 - [ ] YAML extractor pipeline config per-URL/tag.
+- [ ] Support rerunning extractors or resubmitting snapshots on existing snapshots.
 
 M6 - Search
 - [ ] Full-text search across URL, title, content
@@ -209,7 +210,6 @@ M6 - Search
 
 Deferred
 - [ ] Derive snapshot status/is_archived from per-step state (latest attempt per extractor).
-- [ ] Re-run extractors on existing snapshots.
 - [ ] URL validation + response-size cap + timeouts.
 
 ## Contributing
