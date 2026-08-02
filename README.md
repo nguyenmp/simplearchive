@@ -80,15 +80,13 @@ One row per output an extractor run produced (wget → `dom` + `favicon`; chrome
 
 ## Local Development
 
-We develop inside Docker so the only host dependency is Docker itself (no need to install Go, wget, yt-dlp, etc. on the host machine). The same `Dockerfile.dev` doubles as the basis for the production image later.
+We develop inside Docker so the only host dependency is Docker itself (no need to install Go, wget, yt-dlp, etc. on the host machine). The multi-stage `Dockerfile` has two targets: `dev` (Go toolchain + extractors + Tailwind CLI) and `runtime` (production image).
 
 Workflow:
-1. `docker build -f Dockerfile.dev -t simplearchive-dev .` — builds the dev image with Go toolchain + extractors.
+1. `make dev-image` (or `docker build --target dev -t simplearchive-dev .`) — builds the dev image with Go toolchain + extractors.
 2. `docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test ./...` — run tests.
 3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted. Set `-e LOG_LEVEL=debug` for verbose logs (see [Environment Variables](#environment-variables)).
 4. `docker run --rm -it -v "$PWD:/app" -w /app simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
-
-The dev container keeps the module cache in a named volume (`go-mod`) so rebuilds are fast. Source is bind-mounted to `/app` so edits on the host are reflected instantly — no rebuild needed for code-only changes.
 
 ### chromedp build tag
 
@@ -153,7 +151,7 @@ services:
     networks: [default, simplearchive_net]
 ```
 
-The server has no built-in auth; rely on the reverse proxy (basic auth or a trusted network) until M4.
+The server has no built-in auth; rely on the reverse proxy (basic auth or a trusted network) until M4. Caddyfile example: `basic_auth @notGetHead` so only mutating requests (POST / form submissions) require a password.
 
 ## Tailwind CSS
 
@@ -197,8 +195,8 @@ M3.5 — Worker split (deferred until inline archiving is too slow)
 - [x] Remove the `add` CLI command — archiving is web-server-only (serve + worker).
 
 M4 — Production
-- [ ] Basic auth behind reverse proxy.
-- [ ] Docker image, deploy to VPS pointing at archivebox-data/archive/.
+- [x] Basic auth behind reverse proxy.
+- [x] Docker image, deploy to VPS pointing at archivebox-data/archive/.
 - [ ] Per-job step logger view.
 
 M5 — Reliability + config
