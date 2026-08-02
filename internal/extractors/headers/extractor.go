@@ -27,12 +27,6 @@ func (Extractor) Name() string { return "headers" }
 // proxy result (success or failure) becomes the recorded step.
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
-	step := extractors.Step{
-		Name:     "headers",
-		Filename: OutputFile,
-		Cmd:      nil,
-		StartTs:  start,
-	}
 
 	directFn := func() (string, error) { return Fetch(ctx, pageURL, dir) }
 	proxyFn := func() (string, error) {
@@ -45,19 +39,14 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	}
 
 	_, usedProxy, err := proxyutil.TryDirectThenProxy(directFn, proxyFn, e.ProxyURL)
+	end := time.Now()
 
-	if err == nil {
-		step.Status = extractors.StatusSucceeded
-		step.EndTs = time.Now()
-		return []extractors.Step{step}, nil
-	}
-
-	step.Status = extractors.StatusFailed
-	if usedProxy {
+	step := extractors.NewStep("headers", OutputFile, start, end, err)
+	if err != nil && usedProxy {
 		step.Err = fmt.Errorf("headers %q %w", pageURL, err)
-	} else {
-		step.Err = err
 	}
-	step.EndTs = time.Now()
-	return []extractors.Step{step}, step.Err
+	if err != nil {
+		return []extractors.Step{step}, step.Err
+	}
+	return []extractors.Step{step}, nil
 }

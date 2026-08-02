@@ -47,22 +47,11 @@ func RunObelisk(ctx context.Context, pageURL, dir, proxyURL, stepName, outputFil
 	content, _, err := arc.Archive(ctx, ob.Request{URL: pageURL})
 	end := time.Now()
 
-	step := extractors.Step{
-		Name:     stepName,
-		Filename: outputFile,
-		StartTs:  start,
-		EndTs:    end,
-	}
 	if err != nil {
-		step.Status = extractors.StatusFailed
-		step.Err = err
-		return []extractors.Step{step}, err
+		return []extractors.Step{extractors.NewStep(stepName, outputFile, start, end, err)}, err
 	}
 	if werr := os.WriteFile(filepath.Join(dir, outputFile), content, extractors.DefaultFilePerm); werr != nil {
-		step.Status = extractors.StatusFailed
-		step.Err = werr
-		return []extractors.Step{step}, werr
+		return []extractors.Step{extractors.NewStep(stepName, outputFile, start, end, werr)}, werr
 	}
-	step.Status = extractors.StatusSucceeded
-	return []extractors.Step{step}, nil
+	return []extractors.Step{extractors.NewStep(stepName, outputFile, start, end, nil)}, nil
 }

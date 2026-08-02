@@ -24,34 +24,24 @@ func (Extractor) Name() string { return "curl" }
 // attempt (direct when it succeeds, proxy when the proxy fallback succeeds).
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
-	step := extractors.Step{
-		Name:     "curl",
-		Filename: OutputFile,
-		StartTs:  start,
-	}
 
 	_, usedProxy, err := proxyutil.TryDirectThenProxy(
 		func() (string, error) { return Fetch(ctx, pageURL, dir, "") },
 		func() (string, error) { return Fetch(ctx, pageURL, dir, e.ProxyURL) },
 		e.ProxyURL,
 	)
+	end := time.Now()
 
 	proxyURL := ""
 	if usedProxy {
 		proxyURL = e.ProxyURL
 	}
+	step := extractors.NewStep("curl", OutputFile, start, end, err)
 	step.Cmd = buildCmd(pageURL, dir, proxyURL)
-
-	if err == nil {
-		step.Status = extractors.StatusSucceeded
-		step.EndTs = time.Now()
-		return []extractors.Step{step}, nil
+	if err != nil {
+		return []extractors.Step{step}, err
 	}
-
-	step.Status = extractors.StatusFailed
-	step.Err = err
-	step.EndTs = time.Now()
-	return []extractors.Step{step}, err
+	return []extractors.Step{step}, nil
 }
 
 func buildCmd(pageURL, dir, proxyURL string) []string {

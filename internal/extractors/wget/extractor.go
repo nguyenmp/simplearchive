@@ -20,19 +20,11 @@ func (e DOMExtractor) Run(ctx context.Context, pageURL, dir string) ([]extractor
 	start := time.Now()
 	path, err := Fetch(ctx, pageURL, dir)
 	end := time.Now()
-	step := extractors.Step{
-		Name:     "dom",
-		Filename: OutputFile,
-		Cmd:      []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, OutputFile), pageURL},
-		StartTs:  start,
-		EndTs:    end,
-	}
+	step := extractors.NewStep("dom", OutputFile, start, end, err)
+	step.Cmd = []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, OutputFile), pageURL}
 	if err != nil {
-		step.Status = extractors.StatusFailed
-		step.Err = err
 		return []extractors.Step{step}, err
 	}
-	step.Status = extractors.StatusSucceeded
 	_ = path
 	return []extractors.Step{step}, nil
 }
@@ -50,19 +42,11 @@ func (e FaviconExtractor) Run(ctx context.Context, pageURL, dir string) ([]extra
 	start := time.Now()
 	path, err := FetchFavicon(ctx, pageURL, dir)
 	end := time.Now()
-	step := extractors.Step{
-		Name:     "favicon",
-		Filename: FaviconFile,
-		Cmd:      faviconCmd(pageURL, dir),
-		StartTs:  start,
-		EndTs:    end,
-	}
+	step := extractors.NewStep("favicon", FaviconFile, start, end, err)
+	step.Cmd = faviconCmd(pageURL, dir)
 	if err != nil {
-		step.Status = extractors.StatusFailed
-		step.Err = err
 		return []extractors.Step{step}, err
 	}
-	step.Status = extractors.StatusSucceeded
 	_ = path
 	return []extractors.Step{step}, nil
 }
