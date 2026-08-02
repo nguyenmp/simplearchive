@@ -4,12 +4,14 @@ package obelisk
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/nguyenmp/simplearchive/internal/extractors"
 	ob "github.com/go-shiori/obelisk"
+	"github.com/nguyenmp/simplearchive/internal/extractors"
+	"github.com/nguyenmp/simplearchive/internal/proxyutil"
 )
 
 // OutputFile is the filename the single-file HTML is written to.
@@ -24,17 +26,30 @@ func (Extractor) Name() string { return "obelisk" }
 // Run archives url into dir/singlefile.html and reports a single "singlefile"
 // step. It runs in-process, so the recorded cmd is empty.
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
+	return RunObelisk(ctx, pageURL, dir, "", "singlefile", OutputFile)
+}
+
+// RunObelisk is the shared implementation for obelisk-based extractors. It
+// archives pageURL into dir/outputFile using an optional SOCKS5 proxyURL and
+// reports a single step named stepName. Both the obelisk and obeliskproxy
+// extractors delegate to this function.
+func RunObelisk(ctx context.Context, pageURL, dir, proxyURL, stepName, outputFile string) ([]extractors.Step, error) {
 	start := time.Now()
 	arc := ob.Archiver{
 		RequestTimeout: 60 * time.Second,
+	}
+	if t, err := proxyutil.Transport(proxyURL); err != nil {
+		return nil, fmt.Errorf("obelisk: %w", err)
+	} else if t != nil {
+		arc.Transport = t
 	}
 	arc.Validate()
 	content, _, err := arc.Archive(ctx, ob.Request{URL: pageURL})
 	end := time.Now()
 
 	step := extractors.Step{
-		Name:     "singlefile",
-		Filename: OutputFile,
+		Name:     stepName,
+		Filename: outputFile,
 		StartTs:  start,
 		EndTs:    end,
 	}
@@ -43,7 +58,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		step.Err = err
 		return []extractors.Step{step}, err
 	}
-	if werr := os.WriteFile(filepath.Join(dir, OutputFile), content, 0o644); werr != nil {
+	if werr := os.WriteFile(filepath.Join(dir, outputFile), content, 0o644); werr != nil {
 		step.Status = extractors.StatusFailed
 		step.Err = werr
 		return []extractors.Step{step}, werr
