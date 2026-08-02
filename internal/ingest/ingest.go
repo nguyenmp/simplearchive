@@ -3,8 +3,10 @@
 // extractor_runs rows (Enqueue), then drained by the serve worker (RunNext),
 // which runs each step, records its outputs, and rebuilds the per-snapshot
 // index.json as each extractor finishes. Steps are independent: no step is
-// fatal to the others, and a snapshot's state is derived from its steps (see
-// the Deferred milestone), not stored on the snapshot.
+// fatal to the others, and a snapshot's state is derived from its
+// extractor_runs (succeeded if any run succeeded, failed if any failed,
+// pending/running if any are non-terminal, skipped otherwise),
+// not stored on the snapshot.
 package ingest
 
 import (

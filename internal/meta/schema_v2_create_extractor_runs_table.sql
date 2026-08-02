@@ -1,7 +1,7 @@
 -- extractor_runs records the outcome of each extractor step run for a snapshot.
 -- One row per Step emitted by an extractor (e.g. "dom", "favicon", "headers").
 -- It powers per-extractor status in the UI and is designed to be reusable by the
--- future M3.5 job_steps worker table.
+-- worker table.
 CREATE TABLE extractor_runs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp   INTEGER NOT NULL,

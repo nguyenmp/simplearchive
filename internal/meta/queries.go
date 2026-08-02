@@ -12,7 +12,9 @@ import (
 // empty string when the column is NULL. ID is the surrogate primary key used
 // by foreign keys; Timestamp is the ArchiveBox directory name / route key.
 // Snapshot status is not stored — it is derived from the snapshot's
-// extractor_runs (see the Deferred milestone).
+// extractor_runs: succeeded if any run succeeded, failed if any failed,
+// pending/running if any are non-terminal, skipped otherwise. Imported
+// snapshots with no extractor_runs default to succeeded.
 type Snapshot struct {
 	ID        int64
 	Timestamp int64

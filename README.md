@@ -47,7 +47,7 @@ One row per archived URL submission. `id` is the internal surrogate primary key 
 - `title` TEXT
 - `created_at`, `updated_at` INTEGER NOT NULL (epoch microseconds)
 
-Snapshot status and `is_archived` are **not stored** — they are derived from the snapshot's `extractor_runs` (see [Deferred](#milestones)). Imported snapshots (no `extractor_runs` rows) are treated as succeeded.
+Snapshot status and `is_archived` are **not stored** — they are derived from the snapshot's `extractor_runs`: succeeded if any run succeeded, failed if any failed, pending/running if any are non-terminal, skipped otherwise. Imported snapshots (no `extractor_runs` rows) default to succeeded.
 
 ### extractor_runs
 
@@ -228,7 +228,6 @@ M6 - Search
 - [ ] Semantic search across the same
 
 Deferred
-- [ ] Derive snapshot status/is_archived from per-step state (latest attempt per extractor).
 - [ ] URL validation + response-size cap + timeouts.
 
 ## Contributing
