@@ -71,8 +71,9 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 6 {
-		t.Fatalf("user_version = %d, want 6", got)
+	lv := latestVersion()
+	if got := userVersion(t, db); got != lv {
+		t.Fatalf("user_version = %d, want %d", got, lv)
 	}
 	if _, err := db.Exec("SELECT 1 FROM snapshots LIMIT 1"); err != nil {
 		t.Fatalf("snapshots table not queryable after fresh open: %v", err)
@@ -114,8 +115,9 @@ func TestMigrate_idempotent(t *testing.T) {
 	}
 	defer db.Close()
 
-	if got := userVersion(t, db); got != 6 {
-		t.Fatalf("user_version after reopen = %d, want 6", got)
+	lv := latestVersion()
+	if got := userVersion(t, db); got != lv {
+		t.Fatalf("user_version after reopen = %d, want %d", got, lv)
 	}
 }
 
@@ -188,8 +190,9 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 	}
 	defer db.Close()
 
-			if got := userVersion(t, db); got != 6 {
-			t.Fatalf("user_version = %d, want 6", got)
+	lv := latestVersion()
+	if got := userVersion(t, db); got != lv {
+		t.Fatalf("user_version = %d, want %d", got, lv)
 	}
 
 	var id int64
@@ -226,8 +229,9 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 	}
 	defer db.Close()
 
-			if got := userVersion(t, db); got != 6 {
-			t.Fatalf("user_version = %d, want 6", got)
+	lv := latestVersion()
+	if got := userVersion(t, db); got != lv {
+		t.Fatalf("user_version = %d, want %d", got, lv)
 	}
 
 	// One per-extractor run, grouped from the legacy "dom" output under "wget".

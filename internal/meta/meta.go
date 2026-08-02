@@ -46,6 +46,17 @@ var migrations = map[int]string{
 	6: schemaV6,
 }
 
+// latestVersion returns the highest migration version number.
+func latestVersion() int {
+	v := 0
+	for version := range migrations {
+		if version > v {
+			v = version
+		}
+	}
+	return v
+}
+
 func dsn(path string) string {
 	return fmt.Sprintf(
 		"%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)",
