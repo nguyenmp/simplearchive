@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"html"
+	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/extractors/obelisk"
 	"github.com/nguyenmp/simplearchive/internal/extractors/obeliskproxy"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
+	"golang.org/x/net/publicsuffix"
 )
 
 // ParseTitle extracts the contents of the first <title>...</title> element
@@ -40,17 +43,60 @@ func titleOrEmpty(title string) (string, bool) {
 	return title, title != ""
 }
 
-// ParseInfoJSONTitle extracts the "title" field from a yt-dlp info JSON
-// document. It returns an empty string if the field is absent, empty, or the
-// data is not valid JSON.
-func ParseInfoJSONTitle(data []byte) string {
+// ParseInfoJSON extracts the "title" and "webpage_url" fields from a yt-dlp
+// info JSON document. Empty strings are returned for absent fields or invalid
+// JSON.
+func ParseInfoJSON(data []byte) (title, webpageURL string) {
 	var v struct {
-		Title string `json:"title"`
+		Title      string `json:"title"`
+		WebpageURL string `json:"webpage_url"`
 	}
 	if err := json.Unmarshal(data, &v); err != nil {
-		return ""
+		return "", ""
 	}
-	return strings.TrimSpace(v.Title)
+	return strings.TrimSpace(v.Title), strings.TrimSpace(v.WebpageURL)
+}
+
+// domainAliases maps single-purpose shortener domains to the registered
+// domain of the site they alias, so e.g. a youtu.be link is the same site as
+// the youtube.com page yt-dlp canonicalizes it to. Generic shorteners used
+// by arbitrary destinations (bit.ly, ...) must not be listed here.
+var domainAliases = map[string]string{
+	"youtu.be":   "youtube.com",
+	"instagr.am": "instagram.com",
+}
+
+// sameSite reports whether a and b are URLs on the same site: equal
+// hostnames or equal registered domains (eTLD+1, after applying
+// domainAliases), case-insensitive. This treats "m.youtube.com" and
+// "www.youtube.com" as the same site while distinguishing a page from media
+// embedded from another domain. It returns false when either URL fails to
+// parse or has no hostname, so an absent webpage_url never matches.
+func sameSite(a, b string) bool {
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	ha, hb := strings.ToLower(ua.Hostname()), strings.ToLower(ub.Hostname())
+	if ha == "" || hb == "" {
+		return false
+	}
+	if ha == hb {
+		return true
+	}
+	da, errA := publicsuffix.EffectiveTLDPlusOne(ha)
+	db, errB := publicsuffix.EffectiveTLDPlusOne(hb)
+	if errA != nil || errB != nil {
+		return false
+	}
+	if alias, ok := domainAliases[da]; ok {
+		da = alias
+	}
+	if alias, ok := domainAliases[db]; ok {
+		db = alias
+	}
+	return da == db
 }
 
 // ParseMercuryJSONTitle extracts the "title" field from a mercury/article.json
@@ -66,15 +112,26 @@ func ParseMercuryJSONTitle(data []byte) string {
 	return strings.TrimSpace(v.Title)
 }
 
-// BestTitle returns the best available title for the snapshot in dir, trying
-// sources in priority order: yt-dlp info.json, mercury/article.json,
-// obelisk singlefile HTML, then wget DOM HTML. The first non-empty title
-// wins; empty is returned when no source has a title.
-func BestTitle(dir string) string {
+// BestTitle returns the best available title for the snapshot in dir that
+// archived pageURL, trying sources in priority order: yt-dlp info.json when
+// its webpage_url is on the same site as pageURL, mercury/article.json,
+// obelisk singlefile HTML, then wget and curl DOM HTML. An info.json whose
+// webpage_url points at a different site (e.g. a video embedded in the
+// archived page) is used only as a last resort when no other source has a
+// title. Empty is returned when no source has a title.
+func BestTitle(dir, pageURL string) string {
+	var infoTitle string
 	if matches, _ := filepath.Glob(filepath.Join(dir, "*.info.json")); len(matches) > 0 {
 		if data, err := os.ReadFile(matches[0]); err == nil {
-			if t := ParseInfoJSONTitle(data); t != "" {
-				return t
+			title, webpageURL := ParseInfoJSON(data)
+			if title != "" {
+				if sameSite(webpageURL, pageURL) {
+					return title
+				}
+				if webpageURL == "" {
+					slog.Warn("archive.BestTitle: info.json missing webpage_url; demoting to fallback", "file", matches[0])
+				}
+				infoTitle = title
 			}
 		}
 	}
@@ -103,5 +160,5 @@ func BestTitle(dir string) string {
 			return t
 		}
 	}
-	return ""
+	return infoTitle
 }

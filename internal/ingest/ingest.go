@@ -163,7 +163,7 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 			r.Status = extractors.StatusRunning
 		}
 		status, errMsg := runOne(ctx, db, registry, r, snap, dir)
-		title := archive.BestTitle(dir)
+		title := archive.BestTitle(dir, snap.URL)
 		if title != "" && title != snap.Title {
 			if err := db.UpdateSnapshot(ctx, snap.Timestamp, title); err != nil {
 				slog.Warn("ingest: update title", "err", err)
