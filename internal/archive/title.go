@@ -24,11 +24,11 @@ func ParseTitle(doc []byte) string {
 	if start < 0 {
 		return ""
 	}
-	gt := bytes.IndexByte(lower[start:], '>')
-	if gt < 0 {
+	closeAngleIdx := bytes.IndexByte(lower[start:], '>')
+	if closeAngleIdx < 0 {
 		return ""
 	}
-	contentStart := start + gt + 1
+	contentStart := start + closeAngleIdx + 1
 	end := bytes.Index(lower[contentStart:], []byte("</title>"))
 	if end < 0 {
 		return ""
@@ -46,15 +46,15 @@ func titleOrEmpty(title string) (string, bool) {
 // from a yt-dlp info JSON document. Empty strings are returned for absent
 // fields or invalid JSON.
 func ParseInfoJSON(data []byte) (title, webpageURL, extractor string) {
-	var v struct {
+	var info struct {
 		Title      string `json:"title"`
 		WebpageURL string `json:"webpage_url"`
 		Extractor  string `json:"extractor"`
 	}
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := json.Unmarshal(data, &info); err != nil {
 		return "", "", ""
 	}
-	return strings.TrimSpace(v.Title), strings.TrimSpace(v.WebpageURL), strings.TrimSpace(v.Extractor)
+	return strings.TrimSpace(info.Title), strings.TrimSpace(info.WebpageURL), strings.TrimSpace(info.Extractor)
 }
 
 // domainAliases maps single-purpose shortener domains to the registered
@@ -73,43 +73,43 @@ var domainAliases = map[string]string{
 // embedded from another domain. It returns false when either URL fails to
 // parse or has no hostname, so an absent webpage_url never matches.
 func sameSite(a, b string) bool {
-	ua, errA := url.Parse(a)
-	ub, errB := url.Parse(b)
+	urlA, errA := url.Parse(a)
+	urlB, errB := url.Parse(b)
 	if errA != nil || errB != nil {
 		return false
 	}
-	ha, hb := strings.ToLower(ua.Hostname()), strings.ToLower(ub.Hostname())
-	if ha == "" || hb == "" {
+	hostA, hostB := strings.ToLower(urlA.Hostname()), strings.ToLower(urlB.Hostname())
+	if hostA == "" || hostB == "" {
 		return false
 	}
-	if ha == hb {
+	if hostA == hostB {
 		return true
 	}
-	da, errA := publicsuffix.EffectiveTLDPlusOne(ha)
-	db, errB := publicsuffix.EffectiveTLDPlusOne(hb)
+	domainA, errA := publicsuffix.EffectiveTLDPlusOne(hostA)
+	domainB, errB := publicsuffix.EffectiveTLDPlusOne(hostB)
 	if errA != nil || errB != nil {
 		return false
 	}
-	if alias, ok := domainAliases[da]; ok {
-		da = alias
+	if alias, ok := domainAliases[domainA]; ok {
+		domainA = alias
 	}
-	if alias, ok := domainAliases[db]; ok {
-		db = alias
+	if alias, ok := domainAliases[domainB]; ok {
+		domainB = alias
 	}
-	return da == db
+	return domainA == domainB
 }
 
 // ParseMercuryJSONTitle extracts the "title" field from a mercury/article.json
 // document. It returns an empty string if the field is absent, empty, or the
 // data is not valid JSON.
 func ParseMercuryJSONTitle(data []byte) string {
-	var v struct {
+	var info struct {
 		Title string `json:"title"`
 	}
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := json.Unmarshal(data, &info); err != nil {
 		return ""
 	}
-	return strings.TrimSpace(v.Title)
+	return strings.TrimSpace(info.Title)
 }
 
 // BestTitle returns the best available title for the snapshot in dir,
@@ -137,23 +137,23 @@ func BestTitle(dir string) string {
 			return t
 		}
 	}
-	if html, err := os.ReadFile(filepath.Join(dir, obelisk.OutputFile)); err == nil {
-		if t := ParseTitle(html); t != "" {
+	if htmlContent, err := os.ReadFile(filepath.Join(dir, obelisk.OutputFile)); err == nil {
+		if t := ParseTitle(htmlContent); t != "" {
 			return t
 		}
 	}
-	if html, err := os.ReadFile(filepath.Join(dir, obeliskproxy.OutputFile)); err == nil {
-		if t := ParseTitle(html); t != "" {
+	if htmlContent, err := os.ReadFile(filepath.Join(dir, obeliskproxy.OutputFile)); err == nil {
+		if t := ParseTitle(htmlContent); t != "" {
 			return t
 		}
 	}
-	if html, err := os.ReadFile(filepath.Join(dir, wget.OutputFile)); err == nil {
-		if t := ParseTitle(html); t != "" {
+	if htmlContent, err := os.ReadFile(filepath.Join(dir, wget.OutputFile)); err == nil {
+		if t := ParseTitle(htmlContent); t != "" {
 			return t
 		}
 	}
-	if html, err := os.ReadFile(filepath.Join(dir, curl.OutputFile)); err == nil {
-		if t := ParseTitle(html); t != "" {
+	if htmlContent, err := os.ReadFile(filepath.Join(dir, curl.OutputFile)); err == nil {
+		if t := ParseTitle(htmlContent); t != "" {
 			return t
 		}
 	}

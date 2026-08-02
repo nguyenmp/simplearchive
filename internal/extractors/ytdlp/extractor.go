@@ -47,10 +47,10 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	infoFiles, _ := filepath.Glob(filepath.Join(dir, "*.info.json"))
 	vttFiles, _ := filepath.Glob(filepath.Join(dir, "*.vtt"))
 
-	cmdStr := argv
+	cmdArgs := argv
 	steps := make([]extractors.Step, 0, 2)
 
-	meta := extractors.Step{Name: "youtube_metadata", Cmd: cmdStr, StartTs: start, EndTs: end}
+	meta := extractors.Step{Name: "youtube_metadata", Cmd: cmdArgs, StartTs: start, EndTs: end}
 	if len(infoFiles) > 0 {
 		meta.Filename = filepath.Base(infoFiles[0])
 		meta.Status = extractors.StatusSucceeded
@@ -64,18 +64,18 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	}
 	steps = append(steps, meta)
 
-	trans := extractors.Step{Name: "transcript", Cmd: cmdStr, StartTs: start, EndTs: end}
+	transcript := extractors.Step{Name: "transcript", Cmd: cmdArgs, StartTs: start, EndTs: end}
 	if len(vttFiles) > 0 {
-		trans.Filename = filepath.Base(vttFiles[0])
-		trans.Status = extractors.StatusSucceeded
+		transcript.Filename = filepath.Base(vttFiles[0])
+		transcript.Status = extractors.StatusSucceeded
 	} else if meta.Status == extractors.StatusSucceeded {
-		trans.Status = extractors.StatusSkipped
-		trans.Err = errors.New("no transcript available")
+		transcript.Status = extractors.StatusSkipped
+		transcript.Err = errors.New("no transcript available")
 	} else {
-		trans.Status = extractors.StatusFailed
-		trans.Err = meta.Err
+		transcript.Status = extractors.StatusFailed
+		transcript.Err = meta.Err
 	}
-	steps = append(steps, trans)
+	steps = append(steps, transcript)
 
 	if meta.Status == extractors.StatusFailed {
 		return steps, meta.Err

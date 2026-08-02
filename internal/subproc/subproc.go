@@ -97,9 +97,9 @@ func Run(ctx context.Context, dir, name string, args ...string) (Result, error) 
 }
 
 // trunc returns b as a string, capped at maxLogBytes with a truncation marker.
-func trunc(b []byte) string {
-	if len(b) <= maxLogBytes {
-		return string(b)
+func trunc(data []byte) string {
+	if len(data) <= maxLogBytes {
+		return string(data)
 	}
-	return string(b[:maxLogBytes]) + "...(truncated)"
+	return string(data[:maxLogBytes]) + "...(truncated)"
 }

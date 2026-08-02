@@ -19,12 +19,12 @@ const FaviconFile = "favicon.ico"
 
 // Fetch downloads url and writes it to dir/output.html using wget. It returns
 // the path of the written file.
-func Fetch(ctx context.Context, url, dir string) (string, error) {
+func Fetch(ctx context.Context, pageURL, dir string) (string, error) {
 	out := filepath.Join(dir, OutputFile)
 	if _, err := subproc.Run(ctx, "", "wget",
 		"--no-verbose",
 		"--output-document="+out,
-		url,
+		pageURL,
 	); err != nil {
 		return "", fmt.Errorf("wget.Fetch: %w", err)
 	}

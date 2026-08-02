@@ -34,8 +34,8 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	taskCtx, cancel = context.WithTimeout(taskCtx, timeout)
 	defer cancel()
 
-	if dl, ok := ctx.Deadline(); ok {
-		log.Info("chromedp: starting", "extractor_timeout", timeout, "parent_deadline", time.Until(dl).Round(time.Second))
+	if deadline, ok := ctx.Deadline(); ok {
+		log.Info("chromedp: starting", "extractor_timeout", timeout, "parent_deadline", time.Until(deadline).Round(time.Second))
 	} else {
 		log.Info("chromedp: starting", "extractor_timeout", timeout, "parent_deadline", "none")
 	}

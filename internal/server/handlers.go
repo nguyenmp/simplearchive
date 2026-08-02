@@ -116,15 +116,15 @@ func (s *Server) listSnapshotsData(r *http.Request) (listData, error) {
 // searchSnapshotsData handles the search path: search query execution, DB
 // lookup, and file stat computation.
 func (s *Server) searchSnapshotsData(r *http.Request, query string) (listData, error) {
-	tsList, err := s.searchSnapshots(r.Context(), query)
+	timestamps, err := s.searchSnapshots(r.Context(), query)
 	if err != nil {
 		s.Logger.Error("list: searchSnapshots", "query", query, "err", err)
 		return listData{}, err
 	}
 
 	var snaps []meta.Snapshot
-	if len(tsList) > 0 {
-		snaps, err = s.DB.GetSnapshotsByTimestamps(r.Context(), tsList)
+	if len(timestamps) > 0 {
+		snaps, err = s.DB.GetSnapshotsByTimestamps(r.Context(), timestamps)
 		if err != nil {
 			s.Logger.Error("list: GetSnapshotsByTimestamps", "query", query, "err", err)
 			return listData{}, err
@@ -190,36 +190,36 @@ type fileLink struct {
 // links to its archived output files. The {timestamp} URL param is the
 // ArchiveBox "seconds.microseconds" directory name.
 func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
-	tsStr := chi.URLParam(r, "timestamp")
-	ts, err := snapshot.Parse(tsStr)
+	timestampStr := chi.URLParam(r, "timestamp")
+	timestamp, err := snapshot.Parse(timestampStr)
 	if err != nil {
 		s.renderNotFound(w)
 		return
 	}
 
-	snap, err := s.DB.GetSnapshot(r.Context(), ts)
+	snap, err := s.DB.GetSnapshot(r.Context(), timestamp)
 	if err != nil {
 		if errors.Is(err, meta.ErrNotFound) {
 			s.renderNotFound(w)
 			return
 		}
-		s.Logger.Error("detail: query", "timestamp", tsStr, "err", err)
+		s.Logger.Error("detail: query", "timestamp", timestampStr, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	var runs []meta.ExtractorRun
-	if r, rerr := s.DB.ListRunsBySnapshot(r.Context(), snap.ID); rerr != nil {
+	if foundRuns, rerr := s.DB.ListRunsBySnapshot(r.Context(), snap.ID); rerr != nil {
 		s.Logger.Error("detail: list runs", "err", rerr)
 	} else {
-		runs = r
+		runs = foundRuns
 	}
 
 	if isAnyRunNonTerminal(runs) {
 		w.Header().Set("Refresh", "1")
 	}
 
-	data, err := s.snapshotFiles(archive.SnapshotDir(s.ArchiveRoot, ts), ts, runs)
+	data, err := s.snapshotFiles(archive.SnapshotDir(s.ArchiveRoot, timestamp), timestamp, runs)
 	if err != nil {
 		s.Logger.Error("detail: snapshot files", "err", err)
 	}
@@ -289,20 +289,20 @@ func (s *Server) snapshotFiles(dir string, timestamp int64, runs []meta.Extracto
 // worker will re-run it. The extractor name is validated against the default
 // pipeline.
 func (s *Server) handleRerun(w http.ResponseWriter, r *http.Request) {
-	tsStr := chi.URLParam(r, "timestamp")
-	ts, err := snapshot.Parse(tsStr)
+	timestampStr := chi.URLParam(r, "timestamp")
+	timestamp, err := snapshot.Parse(timestampStr)
 	if err != nil {
 		s.renderNotFound(w)
 		return
 	}
 
-	snap, err := s.DB.GetSnapshot(r.Context(), ts)
+	snap, err := s.DB.GetSnapshot(r.Context(), timestamp)
 	if err != nil {
 		if errors.Is(err, meta.ErrNotFound) {
 			s.renderNotFound(w)
 			return
 		}
-		s.Logger.Error("rerun: query", "timestamp", tsStr, "err", err)
+		s.Logger.Error("rerun: query", "timestamp", timestampStr, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -321,36 +321,36 @@ func (s *Server) handleRerun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.DB.InsertPendingRuns(r.Context(), snap.ID, []string{extractor}); err != nil {
-		s.Logger.Error("rerun: insert pending run", "timestamp", tsStr, "extractor", extractor, "err", err)
+		s.Logger.Error("rerun: insert pending run", "timestamp", timestampStr, "extractor", extractor, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, snapshotPath(ts), http.StatusSeeOther)
+	http.Redirect(w, r, snapshotPath(timestamp), http.StatusSeeOther)
 }
 
 // handleDelete accepts POST /{timestamp}/delete: it removes the snapshot from
 // the database (ON DELETE CASCADE cleans up runs and outputs) and deletes its
 // on-disk archive directory, then redirects to the list page.
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
-	tsStr := chi.URLParam(r, "timestamp")
-	ts, err := snapshot.Parse(tsStr)
+	timestampStr := chi.URLParam(r, "timestamp")
+	timestamp, err := snapshot.Parse(timestampStr)
 	if err != nil {
 		s.renderNotFound(w)
 		return
 	}
 
-	if err := s.DB.DeleteSnapshot(r.Context(), ts); err != nil {
+	if err := s.DB.DeleteSnapshot(r.Context(), timestamp); err != nil {
 		if errors.Is(err, meta.ErrNotFound) {
 			s.renderNotFound(w)
 			return
 		}
-		s.Logger.Error("delete: db", "timestamp", tsStr, "err", err)
+		s.Logger.Error("delete: db", "timestamp", timestampStr, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	if err := archive.RemoveSnapshot(s.ArchiveRoot, ts); err != nil {
+	if err := archive.RemoveSnapshot(s.ArchiveRoot, timestamp); err != nil {
 		s.Logger.Error("delete: archive", "err", err)
 		// Do not fail the request; the DB record is already gone.
 	}
@@ -384,14 +384,14 @@ func (s *Server) handleAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, ts, err := ingest.Enqueue(r.Context(), s.DB, url)
+	_, timestamp, err := ingest.Enqueue(r.Context(), s.DB, url)
 	if err != nil {
 		s.Logger.Error("add: enqueue", "url", url, "err", err)
 		s.renderAddError(w, url, "failed to enqueue: "+err.Error())
 		return
 	}
 
-	http.Redirect(w, r, snapshotPath(ts), http.StatusSeeOther)
+	http.Redirect(w, r, snapshotPath(timestamp), http.StatusSeeOther)
 }
 
 func (s *Server) renderAddError(w http.ResponseWriter, url, msg string) {
@@ -473,15 +473,15 @@ func timestampsFromRipgrepOutput(root string, output string) []int64 {
 		if len(parts) == 0 {
 			continue
 		}
-		ts, err := snapshot.Parse(parts[0])
+		timestamp, err := snapshot.Parse(parts[0])
 		if err != nil {
 			continue
 		}
-		if _, ok := seen[ts]; ok {
+		if _, ok := seen[timestamp]; ok {
 			continue
 		}
-		seen[ts] = struct{}{}
-		results = append(results, ts)
+		seen[timestamp] = struct{}{}
+		results = append(results, timestamp)
 	}
 
 	// ripgrep walks in filesystem order; sort newest-first for the UI.

@@ -17,19 +17,19 @@ import (
 // sandbox CSP plus nosniff so archived HTML cannot touch the app or its
 // cookies.
 func (s *Server) handleArchiveFile(w http.ResponseWriter, r *http.Request) {
-	tsStr := chi.URLParam(r, "timestamp")
-	ts, err := snapshot.Parse(tsStr)
+	timestampStr := chi.URLParam(r, "timestamp")
+	timestamp, err := snapshot.Parse(timestampStr)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	sub := chi.URLParam(r, "*")
-	snapDir := archive.SnapshotDir(s.ArchiveRoot, ts)
+	subpath := chi.URLParam(r, "*")
+	snapDir := archive.SnapshotDir(s.ArchiveRoot, timestamp)
 
 	// Prepend "/" so filepath.Clean treats the subpath as absolute, neutralizing
 	// any ".." segments before joining under the snapshot dir.
-	full := filepath.Join(snapDir, filepath.Clean("/"+sub))
+	full := filepath.Join(snapDir, filepath.Clean("/"+subpath))
 
 	// Defense in depth: confirm the resolved path is still within snapDir.
 	rel, err := filepath.Rel(snapDir, full)

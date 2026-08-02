@@ -140,12 +140,12 @@ func (d *DB) ListRunsBySnapshot(ctx context.Context, snapshotID int64) ([]Extrac
 	for _, r := range runs {
 		ids = append(ids, r.ID)
 	}
-	oruns, err := d.queryStepOutputs(ctx, ids)
+	stepOutputsByRun, err := d.queryStepOutputs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	for i := range runs {
-		runs[i].Outputs = oruns[runs[i].ID]
+		runs[i].Outputs = stepOutputsByRun[runs[i].ID]
 	}
 	return runs, nil
 }
@@ -167,17 +167,17 @@ func (d *DB) queryStepOutputs(ctx context.Context, ids []any) (map[int64][]StepO
 
 	out := make(map[int64][]StepOutput)
 	for rows.Next() {
-		var o StepOutput
+		var step StepOutput
 		var cmd string
-		if err := rows.Scan(&o.ID, &o.RunID, &o.Name, &o.Filename, &cmd, &o.Status, &o.StartTs, &o.EndTs, &o.Error); err != nil {
+		if err := rows.Scan(&step.ID, &step.RunID, &step.Name, &step.Filename, &cmd, &step.Status, &step.StartTs, &step.EndTs, &step.Error); err != nil {
 			return nil, fmt.Errorf("meta.queryStepOutputs: scan: %w", err)
 		}
 		if cmd != "" {
-			if err := json.Unmarshal([]byte(cmd), &o.Cmd); err != nil {
+			if err := json.Unmarshal([]byte(cmd), &step.Cmd); err != nil {
 				return nil, fmt.Errorf("meta.queryStepOutputs: unmarshal cmd: %w", err)
 			}
 		}
-		out[o.RunID] = append(out[o.RunID], o)
+		out[step.RunID] = append(out[step.RunID], step)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("meta.queryStepOutputs: rows: %w", err)
