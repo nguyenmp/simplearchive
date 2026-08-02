@@ -4,6 +4,7 @@ package obeliskproxy
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -32,7 +33,9 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	arc := ob.Archiver{
 		RequestTimeout: 60 * time.Second,
 	}
-	if t := proxyutil.Transport(e.ProxyURL); t != nil {
+	if t, err := proxyutil.Transport(e.ProxyURL); err != nil {
+		return nil, fmt.Errorf("obeliskproxy: %w", err)
+	} else if t != nil {
 		arc.Transport = t
 	}
 	arc.Validate()

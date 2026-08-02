@@ -45,9 +45,13 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 
 	// If proxy is configured, try again with proxy.
 	if e.ProxyURL != "" {
+		t, err := proxyutil.Transport(e.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("headers: proxy transport: %w", err)
+		}
 		client := &http.Client{
 			Timeout:   60 * time.Second,
-			Transport: proxyutil.Transport(e.ProxyURL),
+			Transport: t,
 		}
 		path, proxyErr := FetchWithClient(ctx, pageURL, dir, client)
 		if proxyErr == nil {

@@ -17,33 +17,27 @@ func EnvVar() string {
 }
 
 // Transport returns an *http.Transport that routes connections through the
-// SOCKS5 proxy at proxyURL. If proxyURL is empty or invalid, it returns nil.
-func Transport(proxyURL string) *http.Transport {
+// SOCKS5 proxy at proxyURL. If proxyURL is empty it returns (nil, nil).
+// Otherwise it returns an error if the URL or dialer is invalid.
+func Transport(proxyURL string) (*http.Transport, error) {
 	if proxyURL == "" {
-		return nil
+		return nil, nil
 	}
 	u, err := url.Parse(proxyURL)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
 	}
 	dialer, err := proxy.FromURL(u, proxy.Direct)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("cannot create dialer for %q: %w", proxyURL, err)
 	}
 	ctxDialer, ok := dialer.(proxy.ContextDialer)
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("dialer for %q does not implement proxy.ContextDialer", proxyURL)
 	}
 	return &http.Transport{
 		DialContext: ctxDialer.DialContext,
-	}
-}
-
-// CommandFlag returns the --proxy argument value for subcommands that speak
-// URLs natively (yt-dlp, curl --proxy, etc.). If proxyURL is empty, it
-// returns an empty string.
-func CommandFlag(proxyURL string) string {
-	return proxyURL
+	}, nil
 }
 
 // Socks5HostPort strips the socks5:// scheme and returns host:port, or an
