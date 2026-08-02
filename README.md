@@ -87,6 +87,7 @@ Workflow:
 2. `docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test ./...` — run tests.
 3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run -tags chromedp . serve` — run the server with live source mounted. Set `-e LOG_LEVEL=debug` for verbose logs (see [Environment Variables](#environment-variables)).
 4. `docker run --rm -it -v "$PWD:/app" -w /app simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
+5. `docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go run . import` — scan `archive/` for existing `index.json` files and upsert them into `meta.db`. Idempotent; safe to re-run after rsyncing old ArchiveBox data.
 
 ### chromedp build tag
 
