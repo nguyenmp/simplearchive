@@ -2,9 +2,13 @@ package server
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"io"
 	"sync"
+	"time"
+
+	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
 //go:embed templates
@@ -33,6 +37,8 @@ func (r *renderer) page(name string) (*template.Template, error) {
 		"formatTimestamp": formatTimestamp,
 		"snapshotPath":    snapshotPath,
 		"statusClass":     statusClass,
+		"faviconPath":     faviconPath,
+		"timeAgo":         timeAgo,
 	})
 	if _, err := t.ParseFS(
 		templateFS,
@@ -53,6 +59,38 @@ func (r *renderer) render(w io.Writer, page string, data any) error {
 		return err
 	}
 	return t.ExecuteTemplate(w, "layout.html", data)
+}
+
+// faviconPath returns the URL path to a snapshot's favicon in the archive.
+func faviconPath(ts int64) string {
+	return "/archive/" + snapshot.Format(ts) + "/favicon.ico"
+}
+
+// timeAgo renders a human-readable relative time string, e.g. "3 minutes ago".
+func timeAgo(ts int64) string {
+	d := time.Since(time.UnixMicro(ts))
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		m := int(d.Minutes())
+		if m == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", m)
+	case d < 24*time.Hour:
+		h := int(d.Hours())
+		if h == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", h)
+	default:
+		day := int(d.Hours()) / 24
+		if day == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", day)
+	}
 }
 
 // statusClass returns the Tailwind badge classes for an extractor run status.
