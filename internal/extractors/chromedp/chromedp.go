@@ -193,6 +193,7 @@ func (e Extractor) allocator(ctx context.Context, pageURL string) (context.Conte
 
 	bin := e.bin()
 	if _, err := exec.LookPath(bin); err != nil {
+		slog.Warn("chromedp: skipping, browser binary not found", "bin", bin, "err", err)
 		return nil, nil, nil, extractors.ErrSkipped
 	}
 	opts := append(cdp.DefaultExecAllocatorOptions[:],
