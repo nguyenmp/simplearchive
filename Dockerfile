@@ -6,7 +6,7 @@
 #   docker build --target dev -t simplearchive-dev .
 #   docker build --target runtime -t simplearchive .
 #
-# IMPORTANT: wget, yt-dlp, chromium, and ripgrep are runtime dependencies (the
+# IMPORTANT: wget, curl, yt-dlp, chromium, and ripgrep are runtime dependencies (the
 # Go binary shells out to them). If you add/remove a runtime tool here, keep
 # the dev and runtime stages in sync.
 

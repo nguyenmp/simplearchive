@@ -166,12 +166,22 @@ func extractorFor(filename string) string {
 	switch filename {
 	case "output.html":
 		return "dom"
+	case "curl.html":
+		return "curl"
 	case "favicon.ico":
 		return "favicon"
 	case "headers.json":
 		return "headers"
 	case "singlefile.html":
 		return "singlefile"
+	case "singlefile_proxy.html":
+		return "singlefile_proxy"
+	case "screenshot_proxy.png":
+		return "screenshot_proxy"
+	case "output_proxy.pdf":
+		return "pdf_proxy"
+	case "dom_chromedp_proxy.html":
+		return "chromedp_dom_proxy"
 	default:
 		return filename
 	}

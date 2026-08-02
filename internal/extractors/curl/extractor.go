@@ -1,69 +1,70 @@
-package headers
+package curl
 
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/nguyenmp/simplearchive/internal/extractors"
-	"github.com/nguyenmp/simplearchive/internal/proxyutil"
 )
 
-// Extractor fetches HTTP response headers for a URL via net/http.
+// Extractor fetches a URL via curl into curl.html. When ProxyURL is set it
+// tries a direct request first and falls back to the proxy on failure.
 type Extractor struct {
-	// ProxyURL is an optional socks5:// URL. When non-empty, a direct HEAD
-	// request is tried first; if the response status code is in the 4xx range
-	// the request is retried via the SOCKS5 proxy.
 	ProxyURL string
 }
 
 // Name returns the extractor registry identifier.
-func (Extractor) Name() string { return "headers" }
+func (Extractor) Name() string { return "curl" }
 
-// Run fetches headers for pageURL into dir/headers.json and reports a single
-// "headers" step. It tries a direct request first. If ProxyURL is set and the
-// direct response has a 4xx status code, it retries via the proxy and the
-// proxy result (success or failure) becomes the recorded step.
+// Run fetches url into dir/curl.html and reports a single "curl" step.
+// It always attempts a direct fetch first. If that fails and ProxyURL is
+// non-empty, it retries via the SOCKS5 proxy. The step reflects the final
+// attempt (direct when it succeeds, proxy when the proxy fallback succeeds).
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
 	step := extractors.Step{
-		Name:     "headers",
+		Name:     "curl",
 		Filename: OutputFile,
-		Cmd:      nil,
 		StartTs:  start,
 	}
 
 	// Direct attempt.
-	path, directErr := Fetch(ctx, pageURL, dir)
+	path, directErr := Fetch(ctx, pageURL, dir, "")
 	if directErr == nil {
 		step.Status = extractors.StatusSucceeded
+		step.Cmd = buildCmd(pageURL, dir, "")
 		step.EndTs = time.Now()
 		_ = path
 		return []extractors.Step{step}, nil
 	}
 
-	// If proxy is configured, try again with proxy.
+	// Proxy fallback.
 	if e.ProxyURL != "" {
-		client := &http.Client{
-			Timeout:   60 * time.Second,
-			Transport: proxyutil.Transport(e.ProxyURL),
-		}
-		path, proxyErr := FetchWithClient(ctx, pageURL, dir, client)
+		path, proxyErr := Fetch(ctx, pageURL, dir, e.ProxyURL)
 		if proxyErr == nil {
 			step.Status = extractors.StatusSucceeded
+			step.Cmd = buildCmd(pageURL, dir, e.ProxyURL)
 			step.EndTs = time.Now()
 			_ = path
 			return []extractors.Step{step}, nil
 		}
 		step.Status = extractors.StatusFailed
 		step.Err = fmt.Errorf("direct: %w; proxy: %w", directErr, proxyErr)
+		step.Cmd = buildCmd(pageURL, dir, e.ProxyURL)
 		step.EndTs = time.Now()
 		return []extractors.Step{step}, step.Err
 	}
 
+	// No proxy configured.
 	step.Status = extractors.StatusFailed
 	step.Err = directErr
+	step.Cmd = buildCmd(pageURL, dir, "")
 	step.EndTs = time.Now()
 	return []extractors.Step{step}, directErr
+}
+
+func buildCmd(pageURL, dir, proxyURL string) []string {
+	return append([]string{"curl"}, fetchArgv(pageURL, filepath.Join(dir, OutputFile), proxyURL)...)
 }

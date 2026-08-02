@@ -19,17 +19,26 @@ const OutputFile = "headers.json"
 // final URL, and headers to dir/headers.json. It returns the path of the
 // written file.
 func Fetch(ctx context.Context, pageURL, dir string) (string, error) {
+	return FetchWithClient(ctx, pageURL, dir, &http.Client{Timeout: 60 * time.Second})
+}
+
+// FetchWithClient is like Fetch but uses the supplied *http.Client, allowing
+// callers to inject a custom transport (e.g. a SOCKS5 proxy).
+func FetchWithClient(ctx context.Context, pageURL, dir string, client *http.Client) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, pageURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("headers.Fetch: build request: %w", err)
 	}
-	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("headers.Fetch: request %q: %w", pageURL, err)
 	}
 	defer resp.Body.Close()
 
+	return writeHeaders(resp, dir)
+}
+
+func writeHeaders(resp *http.Response, dir string) (string, error) {
 	out := map[string]any{
 		"URL":         resp.Request.URL.String(),
 		"Status-Code": resp.StatusCode,

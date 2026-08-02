@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nguyenmp/simplearchive/internal/extractors/curl"
 	"github.com/nguyenmp/simplearchive/internal/extractors/obelisk"
+	"github.com/nguyenmp/simplearchive/internal/extractors/obeliskproxy"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 )
 
@@ -86,7 +88,17 @@ func BestTitle(dir string) string {
 			return t
 		}
 	}
+	if html, err := os.ReadFile(filepath.Join(dir, obeliskproxy.OutputFile)); err == nil {
+		if t := ParseTitle(html); t != "" {
+			return t
+		}
+	}
 	if html, err := os.ReadFile(filepath.Join(dir, wget.OutputFile)); err == nil {
+		if t := ParseTitle(html); t != "" {
+			return t
+		}
+	}
+	if html, err := os.ReadFile(filepath.Join(dir, curl.OutputFile)); err == nil {
 		if t := ParseTitle(html); t != "" {
 			return t
 		}

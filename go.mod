@@ -7,6 +7,7 @@ require (
 	github.com/chromedp/chromedp v0.16.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-shiori/obelisk v0.0.0-20251018085940-a77acb503b85
+	golang.org/x/net v0.20.0
 	modernc.org/sqlite v1.55.0
 )
 
@@ -29,7 +30,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tdewolff/parse/v2 v2.7.11 // indirect
-	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

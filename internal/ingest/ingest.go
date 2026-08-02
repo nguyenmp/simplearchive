@@ -18,11 +18,15 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/archive"
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/extractors/chromedp"
+	"github.com/nguyenmp/simplearchive/internal/extractors/chromedpproxy"
+	"github.com/nguyenmp/simplearchive/internal/extractors/curl"
 	"github.com/nguyenmp/simplearchive/internal/extractors/headers"
 	"github.com/nguyenmp/simplearchive/internal/extractors/obelisk"
+	"github.com/nguyenmp/simplearchive/internal/extractors/obeliskproxy"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
 	"github.com/nguyenmp/simplearchive/internal/extractors/ytdlp"
 	"github.com/nguyenmp/simplearchive/internal/meta"
+	"github.com/nguyenmp/simplearchive/internal/proxyutil"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
@@ -41,14 +45,23 @@ type Result struct {
 // display (insertion/id order). The DOM fetch runs first so that its title is
 // available for index.json as soon as the first run finishes.
 func defaultPipeline() []extractors.Extractor {
-	return []extractors.Extractor{
+	proxy := proxyutil.EnvVar()
+	pipeline := []extractors.Extractor{
 		wget.DOMExtractor{},
 		wget.FaviconExtractor{},
-		headers.Extractor{},
+		headers.Extractor{ProxyURL: proxy},
 		obelisk.Extractor{},
-		ytdlp.Extractor{Cookies: os.Getenv("YT_DLP_COOKIES")},
+		ytdlp.Extractor{Cookies: os.Getenv("YT_DLP_COOKIES"), ProxyURL: proxy},
 		chromedp.Extractor{},
 	}
+	if proxy != "" {
+		pipeline = append(pipeline,
+			curl.Extractor{ProxyURL: proxy},
+			obeliskproxy.Extractor{ProxyURL: proxy},
+			chromedpproxy.Extractor{ProxyURL: proxy},
+		)
+	}
+	return pipeline
 }
 
 // extractorByName maps an extractor's Name() to its instance so the worker can

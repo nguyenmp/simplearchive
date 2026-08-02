@@ -18,6 +18,8 @@ import (
 type Extractor struct {
 	Bin     string
 	Timeout time.Duration
+	// ProxyURL is ignored in the stub build.
+	ProxyURL string
 }
 
 // Name returns the extractor registry identifier.

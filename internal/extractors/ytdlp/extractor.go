@@ -22,6 +22,8 @@ type Extractor struct {
 	// Cookies is an optional path to a cookies file (--cookies). When empty,
 	// no cookies are passed. Supported formats include Netscape and JSON cookies.
 	Cookies string
+	// ProxyURL is an optional socks5:// URL passed to yt-dlp via --proxy.
+	ProxyURL string
 }
 
 // Name returns the extractor registry identifier.
@@ -38,7 +40,7 @@ func (e Extractor) bin() string {
 // returns the steps recorded so far alongside the error (best-effort).
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
-	argv := argv(e.bin(), e.Cookies, pageURL)
+	argv := argv(e.bin(), e.Cookies, e.ProxyURL, pageURL)
 	_, runErr := subproc.Run(ctx, dir, argv[0], argv[1:]...)
 	end := time.Now()
 
@@ -86,17 +88,19 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 // runs with its working directory set to the snapshot dir (see Run), so yt-dlp
 // resolves the relative template against that dir. Embedding the dir in
 // --output as well would double-nest the path.
-func argv(bin, cookies, pageURL string) []string {
+func argv(bin, cookies, proxyURL, pageURL string) []string {
 	out := []string{
 		bin,
 		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
 		"--output", "%(id)s",
-		pageURL,
 	}
 	if cookies != "" {
-		// Insert --cookies before the URL (i.e. before the last element).
-		out = append(out[:len(out)-1], "--cookies", cookies, out[len(out)-1])
+		out = append(out, "--cookies", cookies)
 	}
+	if proxyURL != "" {
+		out = append(out, "--proxy", proxyURL)
+	}
+	out = append(out, pageURL)
 	return out
 }

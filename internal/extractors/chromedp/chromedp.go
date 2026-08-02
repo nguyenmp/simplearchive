@@ -31,6 +31,9 @@ type Extractor struct {
 	Bin string
 	// Timeout caps a single archive. Defaults to 60s when zero.
 	Timeout time.Duration
+	// ProxyURL is an optional socks5:// URL passed to Chromium via
+	// --proxy-server. When empty no proxy is used.
+	ProxyURL string
 }
 
 // Name returns the extractor registry identifier.
@@ -64,6 +67,9 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		cdp.ExecPath(bin),
 		cdp.NoSandbox, // containers typically run as root; sandbox needs a user namespace
 	)
+	if e.ProxyURL != "" {
+		opts = append(opts, cdp.ProxyServer(e.ProxyURL))
+	}
 	allocCtx, cancel := cdp.NewExecAllocator(ctx, opts...)
 	defer cancel()
 	taskCtx, cancel := cdp.NewContext(allocCtx)
