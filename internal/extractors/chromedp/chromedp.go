@@ -115,33 +115,11 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	}
 
 	start := time.Now()
-	var screenshot []byte
-	var pdf []byte
-	var dom string
-	runErr := cdp.Run(taskCtx,
-		cdp.Navigate(pageURL),
-		cdp.FullScreenshot(&screenshot, 100),
-		cdp.ActionFunc(func(ctx context.Context) error {
-			var perr error
-			pdf, _, perr = page.PrintToPDF().WithPrintBackground(true).Do(ctx)
-			return perr
-		}),
-		cdp.OuterHTML("html", &dom),
-	)
+	screenshot, pdf, dom, runErr := e.captureOutputs(taskCtx, pageURL)
 	elapsed := time.Since(start)
 
 	if runErr != nil {
-		reason := "unknown"
-		if context.Cause(ctx) != nil {
-			reason = fmt.Sprintf("parent canceled: %v", context.Cause(ctx))
-		} else if ctx.Err() == context.Canceled {
-			reason = "parent canceled"
-		} else if ctx.Err() == context.DeadlineExceeded {
-			reason = "parent deadline exceeded"
-		}
-		if taskCtx.Err() == context.DeadlineExceeded {
-			reason = "extractor timeout"
-		}
+		reason := classifyFailure(ctx, taskCtx)
 		log.Warn("chromedp: failed", "elapsed", elapsed.Round(time.Second), "reason", reason, "err", runErr)
 	} else {
 		log.Info("chromedp: succeeded", "elapsed", elapsed.Round(time.Second))
@@ -163,18 +141,59 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		}
 		return steps, runErr
 	}
-	writeStep := func(i int, name string, data []byte) {
-		if werr := os.WriteFile(filepath.Join(dir, name), data, extractors.DefaultFilePerm); werr != nil {
-			steps[i].Status = extractors.StatusFailed
-			steps[i].Err = werr
-			return
-		}
-		steps[i].Status = extractors.StatusSucceeded
-	}
-	writeStep(0, e.screenshotFile(), screenshot)
-	writeStep(1, e.pdfFile(), pdf)
-	writeStep(2, e.domFile(), []byte(dom))
+	writeStepFiles(dir, steps, screenshot, pdf, dom)
 	return steps, nil
+}
+
+func (e Extractor) captureOutputs(ctx context.Context, pageURL string) (screenshot []byte, pdf []byte, dom string, err error) {
+	err = cdp.Run(ctx,
+		cdp.Navigate(pageURL),
+		cdp.FullScreenshot(&screenshot, 100),
+		cdp.ActionFunc(func(ctx context.Context) error {
+			var perr error
+			pdf, _, perr = page.PrintToPDF().WithPrintBackground(true).Do(ctx)
+			return perr
+		}),
+		cdp.OuterHTML("html", &dom),
+	)
+	return
+}
+
+func classifyFailure(ctx context.Context, taskCtx context.Context) string {
+	if context.Cause(ctx) != nil {
+		return fmt.Sprintf("parent canceled: %v", context.Cause(ctx))
+	}
+	if ctx.Err() == context.Canceled {
+		return "parent canceled"
+	}
+	if ctx.Err() == context.DeadlineExceeded {
+		return "parent deadline exceeded"
+	}
+	if taskCtx.Err() == context.DeadlineExceeded {
+		return "extractor timeout"
+	}
+	return "unknown"
+}
+
+func writeStepFiles(dir string, steps []extractors.Step, screenshot []byte, pdf []byte, dom string) error {
+	type write struct {
+		idx  int
+		data []byte
+	}
+	writes := []write{{0, screenshot}, {1, pdf}, {2, []byte(dom)}}
+	var firstErr error
+	for _, w := range writes {
+		if err := os.WriteFile(filepath.Join(dir, steps[w.idx].Filename), w.data, extractors.DefaultFilePerm); err != nil {
+			steps[w.idx].Status = extractors.StatusFailed
+			steps[w.idx].Err = err
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			steps[w.idx].Status = extractors.StatusSucceeded
+		}
+	}
+	return firstErr
 }
 
 // allocator builds the chromedp allocator context for the configured browser
