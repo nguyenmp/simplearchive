@@ -18,14 +18,13 @@ func (DOMExtractor) Name() string { return "wget" }
 // Run fetches url into dir/output.html and reports a single "dom" step.
 func (e DOMExtractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
-	path, err := Fetch(ctx, pageURL, dir)
+	_, err := Fetch(ctx, pageURL, dir)
 	end := time.Now()
 	step := extractors.NewOutput("dom", OutputFile, start, end, err)
 	step.Cmd = []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, OutputFile), pageURL}
 	if err != nil {
 		return []extractors.Step{step}, err
 	}
-	_ = path
 	return []extractors.Step{step}, nil
 }
 
@@ -40,14 +39,13 @@ func (FaviconExtractor) Name() string { return "wget-favicon" }
 // with StatusFailed; ingest treats favicon as best-effort.
 func (e FaviconExtractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
-	path, err := FetchFavicon(ctx, pageURL, dir)
+	_, err := FetchFavicon(ctx, pageURL, dir)
 	end := time.Now()
 	step := extractors.NewOutput("favicon", FaviconFile, start, end, err)
 	step.Cmd = faviconCmd(pageURL, dir)
 	if err != nil {
 		return []extractors.Step{step}, err
 	}
-	_ = path
 	return []extractors.Step{step}, nil
 }
 
