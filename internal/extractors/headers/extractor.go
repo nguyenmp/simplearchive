@@ -13,8 +13,8 @@ import (
 // Extractor fetches HTTP response headers for a URL via net/http.
 type Extractor struct {
 	// ProxyURL is an optional socks5:// URL. When non-empty, a direct HEAD
-	// request is tried first; if the response status code is in the 4xx range
-	// the request is retried via the SOCKS5 proxy.
+	// request is tried first; if it fails for any reason, the request is
+	// retried via the SOCKS5 proxy.
 	ProxyURL string
 }
 

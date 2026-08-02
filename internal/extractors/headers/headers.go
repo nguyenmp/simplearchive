@@ -52,11 +52,11 @@ func writeHeaders(resp *http.Response, dir string) (string, error) {
 
 	data, err := json.MarshalIndent(out, "", "    ")
 	if err != nil {
-		return "", fmt.Errorf("headers.Fetch: marshal: %w", err)
+		return "", fmt.Errorf("headers.writeHeaders: marshal: %w", err)
 	}
 	path := filepath.Join(dir, OutputFile)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return "", fmt.Errorf("headers.Fetch: write %q: %w", path, err)
+		return "", fmt.Errorf("headers.writeHeaders: write %q: %w", path, err)
 	}
 	return path, nil
 }

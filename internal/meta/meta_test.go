@@ -21,7 +21,7 @@ func TestOpen_memory(t *testing.T) {
 	t.Parallel()
 	db, err := Open(context.Background(), ":memory:")
 	if err != nil {
-		t.Fatalf("Open(\"memory:\") = %v", err)
+		t.Fatalf("Open(\":memory:\") = %v", err)
 	}
 	defer db.Close()
 
