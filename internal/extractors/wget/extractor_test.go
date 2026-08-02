@@ -11,7 +11,7 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 )
 
-func TestDOMExtractor_writesOutputHTML(t *testing.T) {
+func TestHTMLExtractor_writesOutputHTML(t *testing.T) {
 	t.Parallel()
 	const body = "<html><head><title>Hi</title></head><body>hello</body></html>"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -20,29 +20,29 @@ func TestDOMExtractor_writesOutputHTML(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	steps, err := DOMExtractor{}.Run(context.Background(), srv.URL, dir)
+	steps, err := HTMLExtractor{}.Run(context.Background(), srv.URL, dir)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if len(steps) != 1 {
 		t.Fatalf("got %d steps, want 1", len(steps))
 	}
-	s := steps[0]
-	if s.Name != "dom" || s.Filename != OutputFile || s.Status != extractors.StatusSucceeded {
-		t.Fatalf("step = %+v", s)
+	step := steps[0]
+	if step.Name != "dom" || step.Filename != OutputFile || step.Status != extractors.StatusSucceeded {
+		t.Fatalf("step = %+v", step)
 	}
 	if got, _ := os.ReadFile(filepath.Join(dir, OutputFile)); string(got) != body {
 		t.Fatalf("output.html = %q, want %q", got, body)
 	}
-	if len(s.Cmd) == 0 || s.Cmd[0] != "wget" {
-		t.Fatalf("Cmd = %v", s.Cmd)
+	if len(step.Cmd) == 0 || step.Cmd[0] != "wget" {
+		t.Fatalf("Cmd = %v", step.Cmd)
 	}
 }
 
-func TestDOMExtractor_badURL_reportsFailed(t *testing.T) {
+func TestHTMLExtractor_badURL_reportsFailed(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	steps, err := DOMExtractor{}.Run(context.Background(), "http://127.0.0.1:1/no-such-port", dir)
+	steps, err := HTMLExtractor{}.Run(context.Background(), "http://127.0.0.1:1/no-such-port", dir)
 	if err == nil {
 		t.Fatal("Run on unreachable URL returned nil error")
 	}

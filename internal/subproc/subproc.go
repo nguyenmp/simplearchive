@@ -60,9 +60,9 @@ func (r *Runner) Run(ctx context.Context, dir, name string, args ...string) (Res
 	dur := time.Since(start)
 
 	exitCode := 0
-	var ee *exec.ExitError
-	if errors.As(runErr, &ee) {
-		exitCode = ee.ExitCode()
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		exitCode = exitErr.ExitCode()
 	} else if runErr != nil {
 		exitCode = -1
 	}

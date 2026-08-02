@@ -54,7 +54,7 @@ func defaultPipeline() []extractors.Extractor {
 		wget.FaviconExtractor{},
 		headers.Extractor{ProxyURL: proxy},
 		curl.Extractor{ProxyURL: proxy},
-		wget.DOMExtractor{},
+		wget.HTMLExtractor{},
 		// curl/wget fetches HTML only (no images), so it is consistently fast;
 		// obelisk inlines resources and can be slow (8s) on image-heavy pages.
 		obelisk.Extractor{},

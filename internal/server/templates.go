@@ -64,13 +64,13 @@ func (r *renderer) render(w io.Writer, page string, data any) error {
 }
 
 // faviconPath returns the URL path to a snapshot's favicon in the archive.
-func faviconPath(ts int64) string {
-	return "/archive/" + snapshot.Format(ts) + "/favicon.ico"
+func faviconPath(timestamp int64) string {
+	return "/archive/" + snapshot.Format(timestamp) + "/favicon.ico"
 }
 
 // timeAgo renders a human-readable relative time string, e.g. "3 minutes ago".
-func timeAgo(ts int64) string {
-	d := time.Since(time.UnixMicro(ts))
+func timeAgo(timestamp int64) string {
+	d := time.Since(time.UnixMicro(timestamp))
 	switch {
 	case d < time.Minute:
 		return "just now"

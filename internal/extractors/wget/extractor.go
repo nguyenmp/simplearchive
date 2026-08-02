@@ -9,14 +9,14 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 )
 
-// DOMExtractor archives a URL's page body via wget into output.html.
-type DOMExtractor struct{}
+// HTMLExtractor archives a URL's page body via wget into output.html.
+type HTMLExtractor struct{}
 
 // Name returns the extractor registry identifier.
-func (DOMExtractor) Name() string { return "wget" }
+func (HTMLExtractor) Name() string { return "wget" }
 
 // Run fetches url into dir/output.html and reports a single "dom" step.
-func (e DOMExtractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
+func (e HTMLExtractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	start := time.Now()
 	_, err := Fetch(ctx, pageURL, dir)
 	end := time.Now()

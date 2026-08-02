@@ -36,18 +36,18 @@ func TestGetSnapshot_found(t *testing.T) {
 		t.Fatalf("UpdateSnapshot: %v", err)
 	}
 
-	s, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), ts)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
-	if s.Timestamp != ts {
-		t.Errorf("timestamp = %d, want %d", s.Timestamp, ts)
+	if snap.Timestamp != ts {
+		t.Errorf("timestamp = %d, want %d", snap.Timestamp, ts)
 	}
-	if s.URL != "https://example.com" {
-		t.Errorf("url = %q", s.URL)
+	if snap.URL != "https://example.com" {
+		t.Errorf("url = %q", snap.URL)
 	}
-	if s.Title != "Example" {
-		t.Errorf("title = %q, want Example", s.Title)
+	if snap.Title != "Example" {
+		t.Errorf("title = %q, want Example", snap.Title)
 	}
 }
 
@@ -64,12 +64,12 @@ func TestGetSnapshot_nullTitleIsEmpty(t *testing.T) {
 		t.Fatalf("CreateSnapshot: %v", err)
 	}
 	// Never call UpdateSnapshot, so title stays NULL.
-	s, err := db.GetSnapshot(context.Background(), ts)
+	snap, err := db.GetSnapshot(context.Background(), ts)
 	if err != nil {
 		t.Fatalf("GetSnapshot: %v", err)
 	}
-	if s.Title != "" {
-		t.Errorf("title = %q, want empty string for NULL", s.Title)
+	if snap.Title != "" {
+		t.Errorf("title = %q, want empty string for NULL", snap.Title)
 	}
 }
 

@@ -246,7 +246,7 @@ func isAnyRunNonTerminal(runs []meta.ExtractorRun) bool {
 // snapshotFiles walks the snapshot directory and classifies files as claimed
 // (produced by an extractor output) or unclaimed. It returns a detailData
 // populated with FilePaths, FileSizes, FileCount, TotalSize, and OtherFiles.
-func (s *Server) snapshotFiles(dir string, ts int64, runs []meta.ExtractorRun) (detailData, error) {
+func (s *Server) snapshotFiles(dir string, timestamp int64, runs []meta.ExtractorRun) (detailData, error) {
 	claimed := make(map[string]bool)
 	for _, run := range runs {
 		for _, out := range run.Outputs {
@@ -262,7 +262,7 @@ func (s *Server) snapshotFiles(dir string, ts int64, runs []meta.ExtractorRun) (
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, full)
-		urlPath := "/archive/" + snapshot.Format(ts) + "/" + rel
+		urlPath := "/archive/" + snapshot.Format(timestamp) + "/" + rel
 		basename := filepath.Base(rel)
 		data.FilePaths[basename] = urlPath
 		data.FilePaths[rel] = urlPath
@@ -403,14 +403,14 @@ func (s *Server) renderAddError(w http.ResponseWriter, url, msg string) {
 
 // formatTimestamp renders an epoch-microsecond timestamp as a human-readable
 // local time for display.
-func formatTimestamp(ts int64) string {
-	return time.UnixMicro(ts).Format("2006-01-02 15:04:05")
+func formatTimestamp(timestamp int64) string {
+	return time.UnixMicro(timestamp).Format("2006-01-02 15:04:05")
 }
 
 // snapshotPath returns the URL path for a snapshot's detail page, using the
 // ArchiveBox "seconds.microseconds" directory name.
-func snapshotPath(ts int64) string {
-	return "/" + snapshot.Format(ts)
+func snapshotPath(timestamp int64) string {
+	return "/" + snapshot.Format(timestamp)
 }
 
 func parsePositiveInt(r *http.Request, key string, def int) int {

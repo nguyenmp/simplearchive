@@ -14,12 +14,12 @@ import (
 // ArchiveBox directory name); the id is the foreign key target used by
 // extractor_runs. A snapshot has no stored status: its state is derived from
 // its extractor_runs (see Snapshot type docs for the derivation rule).
-func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, error) {
+func (d *DB) CreateSnapshot(ctx context.Context, url string, timestamp int64) (int64, error) {
 	now := time.Now().UnixMicro()
 	res, err := d.db.ExecContext(ctx, `
 		INSERT INTO snapshots (timestamp, url, title, created_at, updated_at)
 		VALUES (?, ?, NULL, ?, ?)`,
-		ts, url, now, now)
+		timestamp, url, now, now)
 	if err != nil {
 		return 0, fmt.Errorf("meta.CreateSnapshot: insert: %w", err)
 	}
@@ -43,8 +43,8 @@ type execer interface {
 // with created_at = updated_at = the snapshot's own timestamp. This makes
 // 'simplearchive import' idempotent and safe to re-run. A snapshot has no
 // stored status; imported snapshots with no extractor_runs default to succeeded.
-func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
-	if err := upsertSnapshot(ctx, d.db, e); err != nil {
+func (d *DB) UpsertSnapshot(ctx context.Context, entry archive.IndexEntry) error {
+	if err := upsertSnapshot(ctx, d.db, entry); err != nil {
 		return fmt.Errorf("meta.UpsertSnapshot: %w", err)
 	}
 	return nil
@@ -52,26 +52,26 @@ func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
 
 // UpsertSnapshotTx runs the same upsert as UpsertSnapshot against an in-flight
 // transaction so the import path can batch many snapshots into one commit.
-func UpsertSnapshotTx(ctx context.Context, tx *sql.Tx, e archive.IndexEntry) error {
-	if err := upsertSnapshot(ctx, tx, e); err != nil {
+func UpsertSnapshotTx(ctx context.Context, tx *sql.Tx, entry archive.IndexEntry) error {
+	if err := upsertSnapshot(ctx, tx, entry); err != nil {
 		return fmt.Errorf("meta.UpsertSnapshotTx: %w", err)
 	}
 	return nil
 }
 
-func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
+func upsertSnapshot(ctx context.Context, db execer, entry archive.IndexEntry) error {
 	var titleArg any
-	if e.Title != "" {
-		titleArg = e.Title
+	if entry.Title != "" {
+		titleArg = entry.Title
 	}
-	_, err := q.ExecContext(ctx, `
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO snapshots (timestamp, url, title, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(timestamp) DO UPDATE SET
 			url = excluded.url,
 			title = excluded.title,
 			updated_at = excluded.updated_at`,
-		e.Timestamp, e.URL, titleArg, e.Timestamp, e.Timestamp)
+		entry.Timestamp, entry.URL, titleArg, entry.Timestamp, entry.Timestamp)
 	return err
 }
 
@@ -79,7 +79,7 @@ func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
 // A null title is stored when title is the empty string. It returns an error if
 // no row matches the timestamp. Snapshot status is not stored; it is derived
 // from the snapshot's extractor_runs (see Snapshot type docs).
-func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
+func (d *DB) UpdateSnapshot(ctx context.Context, timestamp int64, title string) error {
 	now := time.Now().UnixMicro()
 	var titleArg any
 	if title != "" {
@@ -89,7 +89,7 @@ func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
 		UPDATE snapshots
 		   SET title = ?, updated_at = ?
 		 WHERE timestamp = ?`,
-		titleArg, now, ts)
+		titleArg, now, timestamp)
 	if err != nil {
 		return fmt.Errorf("meta.UpdateSnapshot: update: %w", err)
 	}
@@ -98,7 +98,7 @@ func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
 		return fmt.Errorf("meta.UpdateSnapshot: rows affected: %w", err)
 	}
 	if affected != 1 {
-		return fmt.Errorf("meta.UpdateSnapshot: no row for timestamp %d", ts)
+		return fmt.Errorf("meta.UpdateSnapshot: no row for timestamp %d", timestamp)
 	}
 	return nil
 }

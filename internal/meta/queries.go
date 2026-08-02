@@ -111,12 +111,12 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 
 // GetSnapshot returns the single snapshot identified by timestamp. It returns
 // ErrNotFound when no row matches.
-func (d *DB) GetSnapshot(ctx context.Context, ts int64) (Snapshot, error) {
+func (d *DB) GetSnapshot(ctx context.Context, timestamp int64) (Snapshot, error) {
 	var s Snapshot
 	err := d.db.QueryRowContext(ctx, `
 		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
-		WHERE timestamp = ?`, ts).Scan(
+		WHERE timestamp = ?`, timestamp).Scan(
 		&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -149,8 +149,8 @@ func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
 // DeleteSnapshot removes the snapshot identified by timestamp. ON DELETE
 // CASCADE on the FKs automatically cleans up extractor_runs and step_outputs.
 // It returns ErrNotFound when no row matches.
-func (d *DB) DeleteSnapshot(ctx context.Context, ts int64) error {
-	res, err := d.db.ExecContext(ctx, `DELETE FROM snapshots WHERE timestamp = ?`, ts)
+func (d *DB) DeleteSnapshot(ctx context.Context, timestamp int64) error {
+	res, err := d.db.ExecContext(ctx, `DELETE FROM snapshots WHERE timestamp = ?`, timestamp)
 	if err != nil {
 		return fmt.Errorf("meta.DeleteSnapshot: %w", err)
 	}

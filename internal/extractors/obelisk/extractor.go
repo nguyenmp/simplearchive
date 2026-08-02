@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	ob "github.com/go-shiori/obelisk"
+	obelisklib "github.com/go-shiori/obelisk"
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/proxyutil"
 )
@@ -35,16 +35,16 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 // extractors delegate to this function.
 func RunObelisk(ctx context.Context, pageURL, dir, proxyURL, stepName, outputFile string) ([]extractors.Step, error) {
 	start := time.Now()
-	arc := ob.Archiver{
+	arc := obelisklib.Archiver{
 		RequestTimeout: extractors.DefaultTimeout,
 	}
-	if t, err := proxyutil.Transport(proxyURL); err != nil {
+	if transport, err := proxyutil.Transport(proxyURL); err != nil {
 		return nil, fmt.Errorf("obelisk: %w", err)
-	} else if t != nil {
-		arc.Transport = t
+	} else if transport != nil {
+		arc.Transport = transport
 	}
 	arc.Validate()
-	content, _, err := arc.Archive(ctx, ob.Request{URL: pageURL})
+	content, _, err := arc.Archive(ctx, obelisklib.Request{URL: pageURL})
 	end := time.Now()
 
 	if err != nil {
