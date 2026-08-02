@@ -51,13 +51,13 @@ func defaultPipeline() []extractors.Extractor {
 		wget.DOMExtractor{},
 		wget.FaviconExtractor{},
 		headers.Extractor{ProxyURL: proxy},
+		curl.Extractor{ProxyURL: proxy},
 		obelisk.Extractor{},
 		ytdlp.Extractor{Cookies: os.Getenv("YT_DLP_COOKIES"), ProxyURL: proxy},
 		chromedp.Extractor{RemoteURL: cdpURL},
 	}
 	if proxy != "" {
 		pipeline = append(pipeline,
-			curl.Extractor{ProxyURL: proxy},
 			obeliskproxy.Extractor{ProxyURL: proxy},
 			chromedpproxy.Extractor{ProxyURL: proxy, RemoteURL: cdpURL},
 		)
