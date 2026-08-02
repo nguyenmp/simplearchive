@@ -1,11 +1,16 @@
 package server
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -31,7 +36,7 @@ type snapshotFileInfo struct {
 	TotalSize int64
 }
 
-// listData is the view model for the list page.
+// listData is the view model for the list/search page.
 type listData struct {
 	Snapshots   []snapshotFileInfo
 	Total       int
@@ -43,18 +48,45 @@ type listData struct {
 	HasNext     bool
 	PrevOffset  int
 	NextOffset  int
+	Query       string // search query, empty when not searching
+	IsSearch    bool   // true when showing search results
 }
 
-// handleList renders GET /: a paginated, newest-first table of snapshots.
+// handleList renders GET /: a paginated list of snapshots, or search results
+// when the "q" query param is present.
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
-	limit := parsePositiveInt(r, "limit", defaultPageSize)
-	offset := parsePositiveInt(r, "offset", 0)
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	isSearch := query != ""
 
-	snaps, total, err := s.DB.ListSnapshots(r.Context(), limit, offset)
-	if err != nil {
-		s.Logger.Error("list: query", "err", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+	var snaps []meta.Snapshot
+	var total int
+	var err error
+
+	if isSearch {
+		tsList, serr := s.searchSnapshots(r.Context(), query)
+		if serr != nil {
+			s.Logger.Error("list: searchSnapshots", "err", serr)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if len(tsList) > 0 {
+			snaps, err = s.DB.GetSnapshotsByTimestamps(r.Context(), tsList)
+			if err != nil {
+				s.Logger.Error("list: GetSnapshotsByTimestamps", "err", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+		}
+		total = len(snaps)
+	} else {
+		limit := parsePositiveInt(r, "limit", defaultPageSize)
+		offset := parsePositiveInt(r, "offset", 0)
+		snaps, total, err = s.DB.ListSnapshots(r.Context(), limit, offset)
+		if err != nil {
+			s.Logger.Error("list: query", "err", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	infos := make([]snapshotFileInfo, 0, len(snaps))
@@ -74,24 +106,31 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		infos = append(infos, info)
 	}
 
-	pages := 0
-	if total > 0 {
-		pages = (total + limit - 1) / limit
-	}
-	page := offset/limit + 1
-
 	data := listData{
-		Snapshots:  infos,
-		Total:      total,
-		Limit:      limit,
-		Offset:     offset,
-		Page:       page,
-		Pages:      pages,
-		HasPrev:    offset > 0,
-		HasNext:    offset+limit < total,
-		PrevOffset: max(offset-limit, 0),
-		NextOffset: offset + limit,
+		Snapshots: infos,
+		Total:     total,
+		Query:     query,
+		IsSearch:  isSearch,
 	}
+
+	if !isSearch {
+		limit := parsePositiveInt(r, "limit", defaultPageSize)
+		offset := parsePositiveInt(r, "offset", 0)
+		pages := 0
+		if total > 0 {
+			pages = (total + limit - 1) / limit
+		}
+		page := offset/limit + 1
+		data.Limit = limit
+		data.Offset = offset
+		data.Page = page
+		data.Pages = pages
+		data.HasPrev = offset > 0
+		data.HasNext = offset+limit < total
+		data.PrevOffset = max(offset-limit, 0)
+		data.NextOffset = offset + limit
+	}
+
 	if err := s.render.render(w, "list", data); err != nil {
 		s.Logger.Error("list: render", "err", err)
 	}
@@ -288,4 +327,67 @@ func parsePositiveInt(r *http.Request, key string, def int) int {
 		return def
 	}
 	return n
+}
+
+// searchSnapshots shells out to ripgrep to find archive files containing q.
+// It returns a deduplicated, newest-first list of snapshot timestamps.
+// An empty q returns nil. If ripgrep exits with an unexpected code, an error
+// is returned.
+func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error) {
+	if q == "" {
+		return nil, nil
+	}
+	cmd := exec.CommandContext(ctx, "rg",
+		"-l", "--no-ignore", "--ignore-case",
+		"--", q, s.ArchiveRoot,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			// No matches.
+			return nil, nil
+		}
+		return nil, fmt.Errorf("rg: %w", err)
+	}
+
+	seen := make(map[int64]struct{})
+	var results []int64
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		rel, err := filepath.Rel(s.ArchiveRoot, line)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(rel, string(filepath.Separator))
+		if len(parts) == 0 {
+			continue
+		}
+		tsStr := parts[0]
+		ts, err := snapshot.Parse(tsStr)
+		if err != nil {
+			continue
+		}
+		if _, ok := seen[ts]; ok {
+			continue
+		}
+		seen[ts] = struct{}{}
+		results = append(results, ts)
+	}
+
+	// ripgrep walks in filesystem order; sort newest-first for the UI.
+	slices.SortFunc(results, func(a, b int64) int {
+		if a > b {
+			return -1
+		}
+		if a < b {
+			return 1
+		}
+		return 0
+	})
+
+	return results, nil
 }

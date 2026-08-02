@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -376,5 +378,84 @@ func TestHandleAddSubmit_success(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("snapshot count = %d, want 1", n)
+	}
+}
+
+func TestHandleList_withQuery_searches(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("ripgrep not installed")
+	}
+
+	db := newTestDB(t)
+	seedSnapshots(t, db, 3)
+
+	root := filepath.Join(t.TempDir(), "archive")
+	// Snapshot 0 has a matching file; snapshot 1 does not.
+	for i := 0; i < 3; i++ {
+		ts := int64(1700000000000000 + i)
+		dir := archive.SnapshotDir(root, ts)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		content := fmt.Sprintf("content for snapshot %d", i)
+		if i == 0 {
+			content = "unique keyword matchme here"
+		}
+		if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte(content), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?q=matchme", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Search") {
+		t.Errorf("body missing search header: %q", body)
+	}
+	if !strings.Contains(body, "matchme") {
+		t.Errorf("body missing query term: %q", body)
+	}
+	if !strings.Contains(body, "Title 0") {
+		t.Errorf("body missing matching snapshot title: %q", body)
+	}
+	if strings.Contains(body, "Title 1") {
+		t.Errorf("body should not contain non-matching snapshot: %q", body)
+	}
+}
+
+func TestHandleList_withQuery_noMatches(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("ripgrep not installed")
+	}
+
+	db := newTestDB(t)
+	seedSnapshots(t, db, 1)
+	root := filepath.Join(t.TempDir(), "archive")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?q=xyznotfound", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !strings.Contains(rec.Body.String(), "No snapshots found") {
+		t.Errorf("body missing no-results message: %q", rec.Body.String())
 	}
 }

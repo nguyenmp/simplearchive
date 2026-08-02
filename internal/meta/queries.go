@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Snapshot is the in-memory representation of a snapshots row. Title is the
@@ -63,6 +64,47 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 		return nil, 0, fmt.Errorf("meta.ListSnapshots: rows: %w", err)
 	}
 	return out, total, nil
+}
+
+// GetSnapshotsByTimestamps returns the snapshots for the provided timestamps,
+// ordered newest-first. Timestamps not present in the database are silently
+// omitted.
+func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) ([]Snapshot, error) {
+	if len(timestamps) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(timestamps))
+	args := make([]any, len(timestamps))
+	for i, ts := range timestamps {
+		placeholders[i] = "?"
+		args[i] = ts
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
+		FROM snapshots
+		WHERE timestamp IN (%s)
+		ORDER BY timestamp DESC`, strings.Join(placeholders, ","))
+
+	rows, err := d.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: query: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Snapshot, 0, len(timestamps))
+	for rows.Next() {
+		var s Snapshot
+		if err := rows.Scan(&s.ID, &s.Timestamp, &s.URL, &s.Title, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: scan: %w", err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: rows: %w", err)
+	}
+	return out, nil
 }
 
 // GetSnapshot returns the single snapshot identified by timestamp. It returns
