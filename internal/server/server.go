@@ -62,6 +62,7 @@ func (s *Server) Router() http.Handler {
 	r.Get("/add", s.handleAddForm)
 	r.Post("/add", s.handleAddSubmit)
 	r.Get("/{timestamp}", s.handleDetail)
+	r.Post("/{timestamp}/delete", s.handleDelete)
 	r.Get("/archive/{timestamp}/*", s.handleArchiveFile)
 	return r
 }

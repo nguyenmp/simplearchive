@@ -197,3 +197,62 @@ func TestRunWorker_drainsEnqueuedSnapshot(t *testing.T) {
 		t.Errorf("index.json missing on disk: %v", err)
 	}
 }
+
+func TestHandleDelete_removesSnapshot(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	root := filepath.Join(t.TempDir(), "archive")
+	// Create a fake on-disk directory so we also exercise archive removal.
+	dir := filepath.Join(root, snapshot.Format(ts))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	// POST delete.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(ts)+"/delete", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d (SeeOther)", rec.Code, http.StatusSeeOther)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/" {
+		t.Errorf("location = %q, want /", loc)
+	}
+
+	// Snapshot is gone.
+	_, err := db.GetSnapshot(context.Background(), ts)
+	if err == nil {
+		t.Fatal("GetSnapshot after delete: expected error, got nil")
+	}
+
+	// On-disk directory is gone.
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("archive dir %q still exists after delete", dir)
+	}
+}
+
+func TestHandleDelete_notFound(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/1700000000000000/delete", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}

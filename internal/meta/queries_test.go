@@ -159,3 +159,31 @@ func TestListSnapshots_clampsLimit(t *testing.T) {
 		t.Fatalf("len = %d, want 3 (clamped to maxLimit)", len(snaps))
 	}
 }
+
+func TestDeleteSnapshot_removesRowAndCascades(t *testing.T) {
+	t.Parallel()
+	db, err := Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	const ts int64 = 1700000000000000
+	if _, err := db.CreateSnapshot(ctx, "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+	if err := db.DeleteSnapshot(ctx, ts); err != nil {
+		t.Fatalf("DeleteSnapshot: %v", err)
+	}
+
+	_, err = db.GetSnapshot(ctx, ts)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetSnapshot after delete: err = %v, want ErrNotFound", err)
+	}
+
+	// Deleting a missing snapshot returns ErrNotFound.
+	if err := db.DeleteSnapshot(ctx, ts); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("DeleteSnapshot missing: err = %v, want ErrNotFound", err)
+	}
+}

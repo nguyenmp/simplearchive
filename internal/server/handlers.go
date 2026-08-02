@@ -153,6 +153,35 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleDelete accepts POST /{timestamp}/delete: it removes the snapshot from
+// the database (ON DELETE CASCADE cleans up runs and outputs) and deletes its
+// on-disk archive directory, then redirects to the list page.
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	tsStr := chi.URLParam(r, "timestamp")
+	ts, err := snapshot.Parse(tsStr)
+	if err != nil {
+		s.renderNotFound(w)
+		return
+	}
+
+	if err := s.DB.DeleteSnapshot(r.Context(), ts); err != nil {
+		if errors.Is(err, meta.ErrNotFound) {
+			s.renderNotFound(w)
+			return
+		}
+		s.Logger.Error("delete: db", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := archive.RemoveSnapshot(s.ArchiveRoot, ts); err != nil {
+		s.Logger.Error("delete: archive", "err", err)
+		// Do not fail the request; the DB record is already gone.
+	}
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 // renderNotFound renders the 404 page with the correct status code.
 func (s *Server) renderNotFound(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNotFound)

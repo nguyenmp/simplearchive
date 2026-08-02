@@ -57,3 +57,34 @@ func TestMkdirSnapshot_idempotent(t *testing.T) {
 		t.Fatalf("entry = %q, want %q", entries[0].Name(), snapshot.Format(1728277530511056))
 	}
 }
+
+func TestRemoveSnapshot_removesDir(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "archive")
+	const ts int64 = 1728277530511056
+	dir, err := MkdirSnapshot(root, ts)
+	if err != nil {
+		t.Fatalf("MkdirSnapshot: %v", err)
+	}
+	// Create a file inside so RemoveAll has real work to do.
+	f := filepath.Join(dir, "test.txt")
+	if err := os.WriteFile(f, []byte("hello"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := RemoveSnapshot(root, ts); err != nil {
+		t.Fatalf("RemoveSnapshot: %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("dir %q still exists after RemoveSnapshot", dir)
+	}
+}
+
+func TestRemoveSnapshot_idempotent(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "archive")
+	const ts int64 = 1728277530511056
+	// Removing a nonexistent directory should not error.
+	if err := RemoveSnapshot(root, ts); err != nil {
+		t.Fatalf("RemoveSnapshot on missing dir: %v", err)
+	}
+}

@@ -25,3 +25,13 @@ func MkdirSnapshot(root string, ts int64) (string, error) {
 	}
 	return dir, nil
 }
+
+// RemoveSnapshot removes the on-disk snapshot directory and all its contents.
+// It is idempotent: returning nil when the directory does not exist.
+func RemoveSnapshot(root string, ts int64) error {
+	dir := SnapshotDir(root, ts)
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("archive.RemoveSnapshot: %w", err)
+	}
+	return nil
+}

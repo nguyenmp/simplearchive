@@ -101,3 +101,21 @@ func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
 	}
 	return s, nil
 }
+
+// DeleteSnapshot removes the snapshot identified by timestamp. ON DELETE
+// CASCADE on the FKs automatically cleans up extractor_runs and step_outputs.
+// It returns ErrNotFound when no row matches.
+func (d *DB) DeleteSnapshot(ctx context.Context, ts int64) error {
+	res, err := d.ExecContext(ctx, `DELETE FROM snapshots WHERE timestamp = ?`, ts)
+	if err != nil {
+		return fmt.Errorf("meta.DeleteSnapshot: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("meta.DeleteSnapshot: rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
