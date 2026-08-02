@@ -67,6 +67,10 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		if errors.Is(err, ErrRipgrepNotFound) {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -421,13 +425,20 @@ func parsePositiveInt(r *http.Request, key string, def int) int {
 	return n
 }
 
+// ErrRipgrepNotFound is returned by searchSnapshots when the ripgrep (rg)
+// binary is not available on PATH.
+var ErrRipgrepNotFound = errors.New("search is unavailable: ripgrep (rg) not installed")
+
 // searchSnapshots shells out to ripgrep to find archive files containing q.
 // It returns a deduplicated, newest-first list of snapshot timestamps.
 // An empty q returns nil. If ripgrep exits with an unexpected code, an error
-// is returned.
+// is returned. If ripgrep is not installed, ErrRipgrepNotFound is returned.
 func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error) {
 	if q == "" {
 		return nil, nil
+	}
+	if _, err := exec.LookPath("rg"); err != nil {
+		return nil, ErrRipgrepNotFound
 	}
 	cmd := exec.CommandContext(ctx, "rg",
 		"-l", "--no-ignore", "--ignore-case",

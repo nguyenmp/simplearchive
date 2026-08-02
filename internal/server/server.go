@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -77,6 +78,9 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	if s.DB == nil {
 		return errors.New("server: database not configured")
+	}
+	if _, err := exec.LookPath("rg"); err != nil {
+		s.Logger.Warn("ripgrep (rg) not found on PATH; search will be unavailable")
 	}
 	if s.Addr == "" {
 		s.Addr = defaultAddr
