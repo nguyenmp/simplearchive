@@ -61,7 +61,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 			return []extractors.Step{step}, nil
 		}
 		step.Status = extractors.StatusFailed
-		step.Err = fmt.Errorf("direct: %w; proxy: %w", directErr, proxyErr)
+		step.Err = fmt.Errorf("headers %q direct: %w; proxy: %w", pageURL, directErr, proxyErr)
 		step.EndTs = time.Now()
 		return []extractors.Step{step}, step.Err
 	}

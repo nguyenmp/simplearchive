@@ -26,7 +26,7 @@ func Fetch(ctx context.Context, pageURL, dir, proxyURL string) (string, error) {
 		if proxyURL != "" {
 			transport = "proxy"
 		}
-		return "", fmt.Errorf("curl.Fetch (%s): %w", transport, err)
+		return "", fmt.Errorf("curl.Fetch (%s) %q: %w", transport, pageURL, err)
 	}
 	return out, nil
 }
