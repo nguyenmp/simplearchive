@@ -34,40 +34,30 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		StartTs:  start,
 	}
 
-	// Direct attempt.
-	path, directErr := Fetch(ctx, pageURL, dir)
-	if directErr == nil {
+	directFn := func() (string, error) { return Fetch(ctx, pageURL, dir) }
+	proxyFn := func() (string, error) {
+		t, transportErr := proxyutil.Transport(e.ProxyURL)
+		if transportErr != nil {
+			return "", fmt.Errorf("headers: proxy transport: %w", transportErr)
+		}
+		client := &http.Client{Timeout: 60 * time.Second, Transport: t}
+		return FetchWithClient(ctx, pageURL, dir, client)
+	}
+
+	_, usedProxy, err := proxyutil.TryDirectThenProxy(directFn, proxyFn, e.ProxyURL)
+
+	if err == nil {
 		step.Status = extractors.StatusSucceeded
 		step.EndTs = time.Now()
-		_ = path
 		return []extractors.Step{step}, nil
 	}
 
-	// If proxy is configured, try again with proxy.
-	if e.ProxyURL != "" {
-		t, err := proxyutil.Transport(e.ProxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("headers: proxy transport: %w", err)
-		}
-		client := &http.Client{
-			Timeout:   60 * time.Second,
-			Transport: t,
-		}
-		path, proxyErr := FetchWithClient(ctx, pageURL, dir, client)
-		if proxyErr == nil {
-			step.Status = extractors.StatusSucceeded
-			step.EndTs = time.Now()
-			_ = path
-			return []extractors.Step{step}, nil
-		}
-		step.Status = extractors.StatusFailed
-		step.Err = fmt.Errorf("headers %q direct: %w; proxy: %w", pageURL, directErr, proxyErr)
-		step.EndTs = time.Now()
-		return []extractors.Step{step}, step.Err
-	}
-
 	step.Status = extractors.StatusFailed
-	step.Err = directErr
+	if usedProxy {
+		step.Err = fmt.Errorf("headers %q %w", pageURL, err)
+	} else {
+		step.Err = err
+	}
 	step.EndTs = time.Now()
-	return []extractors.Step{step}, directErr
+	return []extractors.Step{step}, step.Err
 }

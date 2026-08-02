@@ -56,6 +56,29 @@ func Socks5HostPort(proxyURL string) string {
 	return u.Host
 }
 
+// TryDirectThenProxy calls directFn first. If directFn succeeds, it returns
+// the result with usedProxy=false. If directFn fails and proxyURL is
+// non-empty, proxyFn is called as a fallback. If proxyFn succeeds it returns
+// with usedProxy=true. If both fail, a combined error is returned with the
+// format "direct: <directErr>; proxy: <proxyErr>" and usedProxy=true. When
+// proxyURL is empty and directFn fails, the direct error is returned as-is
+// with usedProxy=false.
+func TryDirectThenProxy[T any](directFn func() (T, error), proxyFn func() (T, error), proxyURL string) (T, bool, error) {
+	result, directErr := directFn()
+	if directErr == nil {
+		return result, false, nil
+	}
+	if proxyURL != "" {
+		result, proxyErr := proxyFn()
+		if proxyErr == nil {
+			return result, true, nil
+		}
+		var zero T
+		return zero, true, fmt.Errorf("direct: %w; proxy: %w", directErr, proxyErr)
+	}
+	return result, false, directErr
+}
+
 // ValidateURL returns an error if proxyURL is non-empty but not a valid
 // socks5:// URL.
 func ValidateURL(proxyURL string) error {
