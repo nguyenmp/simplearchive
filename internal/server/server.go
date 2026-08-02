@@ -160,9 +160,9 @@ func (s *Server) runWorker(ctx context.Context) {
 		if err := ctx.Err(); err != nil {
 			return
 		}
-		_, ran, err := ingest.RunNext(ctx, s.DB, s.ArchiveRoot)
+		res, ran, err := ingest.RunNext(ctx, s.DB, s.ArchiveRoot)
 		if err != nil {
-			s.Logger.Error("worker: run snapshot", "err", err)
+			s.Logger.Error("worker: run snapshot", "snapshot", res.SnapshotID, "err", err)
 		}
 		if ran {
 			continue

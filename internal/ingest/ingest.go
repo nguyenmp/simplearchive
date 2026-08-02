@@ -134,7 +134,7 @@ func RunNext(ctx context.Context, db *meta.DB, archiveRoot string) (Result, bool
 	}
 	res, err := runClaimedSnapshot(ctx, db, archiveRoot, snapshotID)
 	if err != nil {
-		return Result{}, true, fmt.Errorf("ingest.RunNext: run: %w", err)
+		return Result{SnapshotID: snapshotID}, true, fmt.Errorf("ingest.RunNext: run: %w", err)
 	}
 	return res, true, nil
 }
