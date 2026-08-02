@@ -40,7 +40,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		if transportErr != nil {
 			return "", fmt.Errorf("headers: proxy transport: %w", transportErr)
 		}
-		client := &http.Client{Timeout: 60 * time.Second, Transport: t}
+		client := &http.Client{Timeout: extractors.DefaultTimeout, Transport: t}
 		return FetchWithClient(ctx, pageURL, dir, client)
 	}
 

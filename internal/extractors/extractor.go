@@ -22,6 +22,8 @@ const (
 	StatusSkipped   = "skipped"
 )
 
+const DefaultTimeout = 60 * time.Second
+
 // ErrSkipped is returned by an extractor that cannot run in the current build
 // or environment (for example chromedp when no browser binary is available).
 // Callers treat it as a best-effort skip rather than a failure.

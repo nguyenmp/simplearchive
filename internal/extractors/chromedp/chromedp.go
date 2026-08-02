@@ -67,7 +67,7 @@ func (e Extractor) timeout() time.Duration {
 	if e.Timeout > 0 {
 		return e.Timeout
 	}
-	return 60 * time.Second
+	return extractors.DefaultTimeout
 }
 
 func (e Extractor) screenshotFile() string {

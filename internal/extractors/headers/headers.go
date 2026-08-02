@@ -9,7 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
+
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 )
 
 // OutputFile is the filename the headers are written to.
@@ -19,7 +20,7 @@ const OutputFile = "headers.json"
 // final URL, and headers to dir/headers.json. It returns the path of the
 // written file.
 func Fetch(ctx context.Context, pageURL, dir string) (string, error) {
-	return FetchWithClient(ctx, pageURL, dir, &http.Client{Timeout: 60 * time.Second})
+	return FetchWithClient(ctx, pageURL, dir, &http.Client{Timeout: extractors.DefaultTimeout})
 }
 
 // FetchWithClient is like Fetch but uses the supplied *http.Client, allowing
