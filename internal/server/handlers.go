@@ -65,14 +65,14 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	if isSearch {
 		tsList, serr := s.searchSnapshots(r.Context(), query)
 		if serr != nil {
-			s.Logger.Error("list: searchSnapshots", "err", serr)
+			s.Logger.Error("list: searchSnapshots", "query", query, "err", serr)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 		if len(tsList) > 0 {
 			snaps, err = s.DB.GetSnapshotsByTimestamps(r.Context(), tsList)
 			if err != nil {
-				s.Logger.Error("list: GetSnapshotsByTimestamps", "err", err)
+				s.Logger.Error("list: GetSnapshotsByTimestamps", "query", query, "err", err)
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
 			}
@@ -83,7 +83,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		offset := parsePositiveInt(r, "offset", 0)
 		snaps, total, err = s.DB.ListSnapshots(r.Context(), limit, offset)
 		if err != nil {
-			s.Logger.Error("list: query", "err", err)
+			s.Logger.Error("list: query", "limit", limit, "offset", offset, "err", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -177,7 +177,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 			s.renderNotFound(w)
 			return
 		}
-		s.Logger.Error("detail: query", "err", err)
+		s.Logger.Error("detail: query", "timestamp", tsStr, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -253,7 +253,7 @@ func (s *Server) handleRerun(w http.ResponseWriter, r *http.Request) {
 			s.renderNotFound(w)
 			return
 		}
-		s.Logger.Error("rerun: query", "err", err)
+		s.Logger.Error("rerun: query", "timestamp", tsStr, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -272,7 +272,7 @@ func (s *Server) handleRerun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.DB.InsertPendingRuns(r.Context(), snap.ID, []string{extractor}); err != nil {
-		s.Logger.Error("rerun: insert pending run", "err", err)
+		s.Logger.Error("rerun: insert pending run", "timestamp", tsStr, "extractor", extractor, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -296,7 +296,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 			s.renderNotFound(w)
 			return
 		}
-		s.Logger.Error("delete: db", "err", err)
+		s.Logger.Error("delete: db", "timestamp", tsStr, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
