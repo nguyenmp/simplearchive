@@ -8,11 +8,16 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/extractors/chromedp"
+)
+
+const (
+	ScreenshotFile = "screenshot_proxy.png"
+	PDFFile        = "output_proxy.pdf"
+	DOMFile        = "dom_chromedp_proxy.html"
 )
 
 // Extractor is the proxy variant of chromedp.Extractor.
@@ -26,45 +31,49 @@ type Extractor struct {
 // Name returns the extractor registry identifier.
 func (Extractor) Name() string { return "chromedp_proxy" }
 
-// Run delegates to chromedp.Extractor with the proxy configured, then renames
-// the output files to their *_proxy.* equivalents and updates step names.
+// Run delegates to chromedp.Extractor with the proxy configured into a temp
+// directory, then moves the output files to dir with *_proxy.* names so the
+// original chromedp outputs are not overwritten.
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
+	tmpDir, tmpErr := os.MkdirTemp("", "chromedp_proxy-*")
+	if tmpErr != nil {
+		return nil, tmpErr
+	}
+	defer os.RemoveAll(tmpDir)
+
 	inner := chromedp.Extractor{
 		Bin:       e.Bin,
 		Timeout:   e.Timeout,
 		ProxyURL:  e.ProxyURL,
 		RemoteURL: e.RemoteURL,
 	}
-	steps, err := inner.Run(ctx, pageURL, dir)
+	steps, err := inner.Run(ctx, pageURL, tmpDir)
+
+	nameMap := map[string]string{
+		chromedp.ScreenshotFile: ScreenshotFile,
+		chromedp.PDFFile:        PDFFile,
+		chromedp.DOMFile:        DOMFile,
+	}
+	stepNameMap := map[string]string{
+		chromedp.ScreenshotFile: "screenshot_proxy",
+		chromedp.PDFFile:        "pdf_proxy",
+		chromedp.DOMFile:        "chromedp_dom_proxy",
+	}
 	for i := range steps {
-		oldName := steps[i].Name
-		steps[i].Name = renameStep(oldName)
+		origFile := steps[i].Filename
+		steps[i].Name = stepNameMap[origFile]
+		steps[i].Filename = nameMap[origFile]
 
-		oldFile := steps[i].Filename
-		newFile := renameFile(oldFile)
-		steps[i].Filename = newFile
-
-		// Rename on disk if the old file was written successfully.
-		if oldFile != "" && oldFile != newFile {
-			oldPath := filepath.Join(dir, oldFile)
-			newPath := filepath.Join(dir, newFile)
-			if _, statErr := os.Stat(oldPath); statErr == nil {
-				_ = os.Rename(oldPath, newPath)
+		if origFile == "" {
+			continue
+		}
+		tmpPath := filepath.Join(tmpDir, origFile)
+		dstPath := filepath.Join(dir, nameMap[origFile])
+		if _, statErr := os.Stat(tmpPath); statErr == nil {
+			if renameErr := os.Rename(tmpPath, dstPath); renameErr != nil {
+				_ = os.Link(tmpPath, dstPath)
 			}
 		}
 	}
 	return steps, err
-}
-
-func renameStep(name string) string {
-	return name + "_proxy"
-}
-
-func renameFile(name string) string {
-	ext := filepath.Ext(name)
-	if ext == "" {
-		return name + "_proxy"
-	}
-	base := strings.TrimSuffix(name, ext)
-	return base + "_proxy" + ext
 }
