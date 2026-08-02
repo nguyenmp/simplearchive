@@ -11,6 +11,7 @@ package chromedp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -95,6 +96,7 @@ func (e Extractor) domFile() string {
 // StatusFailed and the cause; on success each output is written and marked
 // individually.
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
+	log := slog.With("extractor", e.Name()+e.FileSuffix, "url", pageURL)
 	allocCtx, cancel, cmd, err := e.allocator(ctx, pageURL)
 	if err != nil {
 		return nil, err
@@ -102,8 +104,15 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	defer cancel()
 	taskCtx, cancel := cdp.NewContext(allocCtx)
 	defer cancel()
-	taskCtx, cancel = context.WithTimeout(taskCtx, e.timeout())
+	timeout := e.timeout()
+	taskCtx, cancel = context.WithTimeout(taskCtx, timeout)
 	defer cancel()
+
+	if dl, ok := ctx.Deadline(); ok {
+		log.Info("chromedp: starting", "extractor_timeout", timeout, "parent_deadline", time.Until(dl).Round(time.Second))
+	} else {
+		log.Info("chromedp: starting", "extractor_timeout", timeout, "parent_deadline", "none")
+	}
 
 	start := time.Now()
 	var screenshot []byte
@@ -119,8 +128,26 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		}),
 		cdp.OuterHTML("html", &dom),
 	)
-	end := time.Now()
+	elapsed := time.Since(start)
 
+	if runErr != nil {
+		reason := "unknown"
+		if context.Cause(ctx) != nil {
+			reason = fmt.Sprintf("parent canceled: %v", context.Cause(ctx))
+		} else if ctx.Err() == context.Canceled {
+			reason = "parent canceled"
+		} else if ctx.Err() == context.DeadlineExceeded {
+			reason = "parent deadline exceeded"
+		}
+		if taskCtx.Err() == context.DeadlineExceeded {
+			reason = "extractor timeout"
+		}
+		log.Warn("chromedp: failed", "elapsed", elapsed.Round(time.Second), "reason", reason, "err", runErr)
+	} else {
+		log.Info("chromedp: succeeded", "elapsed", elapsed.Round(time.Second))
+	}
+
+	end := start.Add(elapsed)
 	steps := []extractors.Step{
 		{Name: "screenshot" + e.FileSuffix, Filename: e.screenshotFile(), Cmd: cmd, StartTs: start, EndTs: end},
 		{Name: "pdf" + e.FileSuffix, Filename: e.pdfFile(), Cmd: cmd, StartTs: start, EndTs: end},
