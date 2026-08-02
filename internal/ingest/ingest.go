@@ -41,24 +41,36 @@ type Result struct {
 }
 
 // defaultPipeline is the ordered list of extractors run for every URL. Steps
-// are independent: no step is fatal to the others, and the order only affects
-// display (insertion/id order). The DOM fetch runs first so that its title is
-// available for index.json as soon as the first run finishes.
+// are independent: no step is fatal to the others. The order determines
+// execution order (and thus how quickly the UI shows progress). Title is
+// derived incrementally after each run (see archive.BestTitle), so no single
+// extractor gates title discovery.   Thus we prioritize what will give us the
+// fastest success rate/title discovery first, with the slowest extractors last.
 func defaultPipeline() []extractors.Extractor {
 	proxy := proxyutil.EnvVar()
 	cdpURL := os.Getenv("CHROME_CDP_URL")
 	pipeline := []extractors.Extractor{
-		wget.DOMExtractor{},
+		// Fast (~0-2s): lightweight fetches that return quickly and cover most sites.
 		wget.FaviconExtractor{},
 		headers.Extractor{ProxyURL: proxy},
 		curl.Extractor{ProxyURL: proxy},
 		obelisk.Extractor{},
+		wget.DOMExtractor{},
+		// Diverse (~5-30s): fails fast for non-video URLs; success is far more
+		// valuable than the slower extractors below because YouTube/IG
+		// typically block wget/curl/obelisk.
 		ytdlp.Extractor{Cookies: os.Getenv("YT_DLP_COOKIES"), ProxyURL: proxy},
-		chromedp.Extractor{RemoteURL: cdpURL},
 	}
 	if proxy != "" {
+		// (~4-15s): faster than chromedp but slower than everything else
 		pipeline = append(pipeline,
 			obeliskproxy.Extractor{ProxyURL: proxy},
+		)
+	}
+	// Slow (~10-22s): headless browser; always last.
+	pipeline = append(pipeline, chromedp.Extractor{RemoteURL: cdpURL})
+	if proxy != "" {
+		pipeline = append(pipeline,
 			chromedpproxy.Extractor{ProxyURL: proxy, RemoteURL: cdpURL},
 		)
 	}
