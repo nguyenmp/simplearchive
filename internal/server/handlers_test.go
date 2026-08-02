@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/meta"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
@@ -112,7 +113,7 @@ func TestHandleDetail_found(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	// Seed an extractor run so the per-extractor status table is populated.
@@ -456,7 +457,7 @@ func TestHandleList_withQuery_searches(t *testing.T) {
 		if i == 0 {
 			content = "unique keyword matchme here"
 		}
-		if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte(content), extractors.DefaultFilePerm); err != nil {
 			t.Fatalf("write: %v", err)
 		}
 	}

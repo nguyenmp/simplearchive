@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
@@ -68,7 +69,7 @@ func TestRemoveSnapshot_removesDir(t *testing.T) {
 	}
 	// Create a file inside so RemoveAll has real work to do.
 	f := filepath.Join(dir, "test.txt")
-	if err := os.WriteFile(f, []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(f, []byte("hello"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if err := RemoveSnapshot(root, ts); err != nil {

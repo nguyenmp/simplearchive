@@ -56,7 +56,7 @@ func writeHeaders(resp *http.Response, dir string) (string, error) {
 		return "", fmt.Errorf("headers.writeHeaders: marshal: %w", err)
 	}
 	path := filepath.Join(dir, OutputFile)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, extractors.DefaultFilePerm); err != nil {
 		return "", fmt.Errorf("headers.writeHeaders: write %q: %w", path, err)
 	}
 	return path, nil

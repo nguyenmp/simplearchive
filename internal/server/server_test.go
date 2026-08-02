@@ -236,7 +236,7 @@ func TestHandleDelete_removesSnapshot(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte("{}"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte("{}"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -282,10 +282,10 @@ func TestHandleList_showsFileCountAndSize(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html></html>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html></html>"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "favicon.ico"), []byte("ico"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "favicon.ico"), []byte("ico"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -337,10 +337,10 @@ func TestHandleDetail_showsNestedFiles(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "media"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html></html>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html></html>"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "media", "video.mp4"), []byte("fakevideo"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "media", "video.mp4"), []byte("fakevideo"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile nested: %v", err)
 	}
 
@@ -385,7 +385,7 @@ func TestHandleDetail_showsIndividualFileSizes(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("hello world"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("hello world"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 

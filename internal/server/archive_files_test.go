@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 	"github.com/nguyenmp/simplearchive/internal/snapshot"
 )
 
@@ -22,10 +23,10 @@ func newArchiveServer(t *testing.T) (*Server, string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>index</html>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>index</html>"), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("write index: %v", err)
 	}
 	return &Server{DB: db, ArchiveRoot: root}, snapshot.Format(ts)

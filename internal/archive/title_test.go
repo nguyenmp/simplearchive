@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/nguyenmp/simplearchive/internal/extractors"
 )
 
 func TestParseTitle_extractsTitle(t *testing.T) {
@@ -121,10 +123,10 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// Priority 1: yt-dlp info.json with specialized extractor
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "abc.info.json"), []byte(`{"title":"Info JSON","webpage_url":"https://www.youtube.com/watch?v=abc","extractor":"youtube"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "abc.info.json"), []byte(`{"title":"Info JSON","webpage_url":"https://www.youtube.com/watch?v=abc","extractor":"youtube"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir); got != "Info JSON" {
@@ -133,10 +135,10 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// Generic extractor is NOT prioritized — falls through to HTML sources
 	dirGeneric := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dirGeneric, "icanhazip.info.json"), []byte(`{"title":"generic video #icanhazip","webpage_url":"https://icanhazip.com/","extractor":"generic"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirGeneric, "icanhazip.info.json"), []byte(`{"title":"generic video #icanhazip","webpage_url":"https://icanhazip.com/","extractor":"generic"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dirGeneric, "singlefile.html"), []byte(`<html><head><title>Page Title</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirGeneric, "singlefile.html"), []byte(`<html><head><title>Page Title</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dirGeneric); got != "Page Title" {
@@ -148,10 +150,10 @@ func TestBestTitle_priority(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir2, "mercury"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir2, "mercury", "article.json"), []byte(`{"title":"Mercury"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir2, "mercury", "article.json"), []byte(`{"title":"Mercury"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir2, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir2, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir2); got != "Mercury" {
@@ -160,10 +162,10 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// Priority 3: singlefile.html when no info.json or mercury
 	dir3 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir3, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir3, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir3, "output.html"), []byte(`<html><head><title>Output</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir3, "output.html"), []byte(`<html><head><title>Output</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir3); got != "Singlefile" {
@@ -172,7 +174,7 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// Priority 4: output.html when nothing else exists
 	dir4 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir4, "output.html"), []byte(`<html><head><title>Output</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir4, "output.html"), []byte(`<html><head><title>Output</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir4); got != "Output" {
@@ -181,7 +183,7 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// Empty when nothing has a title
 	dir5 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir5, "output.html"), []byte(`<html><head></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir5, "output.html"), []byte(`<html><head></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir5); got != "" {
@@ -190,10 +192,10 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// info.json with generic extractor loses to HTML titles...
 	dir6 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir6, "xyz.info.json"), []byte(`{"title":"Generic Title","webpage_url":"https://www.youtube.com/watch?v=xyz","extractor":"generic"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir6, "xyz.info.json"), []byte(`{"title":"Generic Title","webpage_url":"https://www.youtube.com/watch?v=xyz","extractor":"generic"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir6, "singlefile.html"), []byte(`<html><head><title>Page Title</title></head></html>`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir6, "singlefile.html"), []byte(`<html><head><title>Page Title</title></head></html>`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir6); got != "Page Title" {
@@ -202,7 +204,7 @@ func TestBestTitle_priority(t *testing.T) {
 
 	// ...but is used as a last resort when no HTML source has a title
 	dir7 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir7, "xyz.info.json"), []byte(`{"title":"Generic Title","webpage_url":"https://www.youtube.com/watch?v=xyz","extractor":"generic"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir7, "xyz.info.json"), []byte(`{"title":"Generic Title","webpage_url":"https://www.youtube.com/watch?v=xyz","extractor":"generic"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if got := BestTitle(dir7); got != "Generic Title" {

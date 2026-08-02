@@ -161,7 +161,7 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		return steps, runErr
 	}
 	writeStep := func(i int, name string, data []byte) {
-		if werr := os.WriteFile(filepath.Join(dir, name), data, 0o644); werr != nil {
+		if werr := os.WriteFile(filepath.Join(dir, name), data, extractors.DefaultFilePerm); werr != nil {
 			steps[i].Status = extractors.StatusFailed
 			steps[i].Err = werr
 			return

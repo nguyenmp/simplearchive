@@ -248,7 +248,7 @@ func TestScan_fallsBackToBestTitle(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "mercury"), 0o755); err != nil {
 		t.Fatalf("mkdir mercury: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "mercury", "article.json"), []byte(`{"title":"Fallback Title"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "mercury", "article.json"), []byte(`{"title":"Fallback Title"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -288,7 +288,7 @@ func TestScan_preservesNonEmptyTitle(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "mercury"), 0o755); err != nil {
 		t.Fatalf("mkdir mercury: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "mercury", "article.json"), []byte(`{"title":"Mercury Title"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "mercury", "article.json"), []byte(`{"title":"Mercury Title"}`), extractors.DefaultFilePerm); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 

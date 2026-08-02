@@ -7,8 +7,11 @@ package extractors
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"time"
 )
+
+const DefaultFilePerm fs.FileMode = 0o644
 
 // Status of an extractor step. These match the "status" field ArchiveBox records
 // in each ArchiveResult of a snapshot's index.json history. The pending/running

@@ -155,7 +155,7 @@ func WriteIndex(data IndexData) error {
 		return fmt.Errorf("archive.WriteIndex: marshal: %w", err)
 	}
 	path := filepath.Join(data.Dir, IndexFile)
-	if err := os.WriteFile(path, append(enc, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(path, append(enc, '\n'), extractors.DefaultFilePerm); err != nil {
 		return fmt.Errorf("archive.WriteIndex: write %q: %w", path, err)
 	}
 	return nil

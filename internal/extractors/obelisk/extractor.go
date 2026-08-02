@@ -58,7 +58,7 @@ func RunObelisk(ctx context.Context, pageURL, dir, proxyURL, stepName, outputFil
 		step.Err = err
 		return []extractors.Step{step}, err
 	}
-	if werr := os.WriteFile(filepath.Join(dir, outputFile), content, 0o644); werr != nil {
+	if werr := os.WriteFile(filepath.Join(dir, outputFile), content, extractors.DefaultFilePerm); werr != nil {
 		step.Status = extractors.StatusFailed
 		step.Err = werr
 		return []extractors.Step{step}, werr
