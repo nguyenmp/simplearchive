@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/nguyenmp/simplearchive/internal/archive"
@@ -45,7 +46,7 @@ func defaultPipeline() []extractors.Extractor {
 		wget.FaviconExtractor{},
 		headers.Extractor{},
 		obelisk.Extractor{},
-		ytdlp.Extractor{},
+		ytdlp.Extractor{Cookies: os.Getenv("YT_DLP_COOKIES")},
 		chromedp.Extractor{},
 	}
 }

@@ -121,10 +121,11 @@ $ archivebox init
 
 ## Environment Variables
 
-| Variable     | Default          | Description                                                                                          |
-| ------------ | ---------------- | ---------------------------------------------------------------------------------------------------- |
-| `LOG_LEVEL`  | `info`           | Structured log level for the JSON slog handler. One of `debug`, `info`, `warn`, `warning`, `error`. |
-| `SERVE_ADDR`  | `127.0.0.1:8080` | Listen address for `simplearchive serve`. |
+| Variable        | Default          | Description                                                                                          |
+| ----------------| -----------------| ---------------------------------------------------------------------------------------------------- |
+| `LOG_LEVEL`     | `info`           | Structured log level for the JSON slog handler. One of `debug`, `info`, `warn`, `warning`, `error`. |
+| `SERVE_ADDR`    | `127.0.0.1:8080` | Listen address for `simplearchive serve`.                                                          |
+| `YT_DLP_COOKIES`| (empty)          | Path to a cookies file passed to yt-dlp via `--cookies`. Netscape and JSON formats are supported.   |
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 

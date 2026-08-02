@@ -42,12 +42,33 @@ func TestExtractor_unsupportedURL_fails(t *testing.T) {
 
 func TestArgv(t *testing.T) {
 	t.Parallel()
-	got := argv("yt-dlp", "https://youtu.be/abc")
+	got := argv("yt-dlp", "", "https://youtu.be/abc")
 	want := []string{
 		"yt-dlp",
 		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
 		"--no-progress", "--no-warnings",
 		"--output", "%(id)s",
+		"https://youtu.be/abc",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("argv = %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("argv[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestArgv_withCookies(t *testing.T) {
+	t.Parallel()
+	got := argv("yt-dlp", "/data/cookies.txt", "https://youtu.be/abc")
+	want := []string{
+		"yt-dlp",
+		"--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en", "--skip-download",
+		"--no-progress", "--no-warnings",
+		"--output", "%(id)s",
+		"--cookies", "/data/cookies.txt",
 		"https://youtu.be/abc",
 	}
 	if len(got) != len(want) {
