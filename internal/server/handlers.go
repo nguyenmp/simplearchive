@@ -56,84 +56,106 @@ type listData struct {
 // when the "q" query param is present.
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	isSearch := query != ""
 
-	var snaps []meta.Snapshot
-	var total int
+	var data listData
 	var err error
 
-	if isSearch {
-		tsList, serr := s.searchSnapshots(r.Context(), query)
-		if serr != nil {
-			s.Logger.Error("list: searchSnapshots", "query", query, "err", serr)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		if len(tsList) > 0 {
-			snaps, err = s.DB.GetSnapshotsByTimestamps(r.Context(), tsList)
-			if err != nil {
-				s.Logger.Error("list: GetSnapshotsByTimestamps", "query", query, "err", err)
-				http.Error(w, "internal error", http.StatusInternalServerError)
-				return
-			}
-		}
-		total = len(snaps)
+	if query != "" {
+		data, err = s.searchSnapshotsData(r, query)
 	} else {
-		limit := parsePositiveInt(r, "limit", defaultPageSize)
-		offset := parsePositiveInt(r, "offset", 0)
-		snaps, total, err = s.DB.ListSnapshots(r.Context(), limit, offset)
+		data, err = s.listSnapshotsData(r)
+	}
+
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.render.render(w, "list", data); err != nil {
+		s.Logger.Error("list: render", "err", err)
+	}
+}
+
+// listSnapshotsData handles the non-search list path: pagination parsing, DB
+// query, and file stat computation.
+func (s *Server) listSnapshotsData(r *http.Request) (listData, error) {
+	limit := parsePositiveInt(r, "limit", defaultPageSize)
+	offset := parsePositiveInt(r, "offset", 0)
+
+	snaps, total, err := s.DB.ListSnapshots(r.Context(), limit, offset)
+	if err != nil {
+		s.Logger.Error("list: query", "limit", limit, "offset", offset, "err", err)
+		return listData{}, err
+	}
+
+	infos := fileInfoForSnaps(s.ArchiveRoot, snaps)
+	pages := 0
+	if total > 0 {
+		pages = (total + limit - 1) / limit
+	}
+	page := offset/limit + 1
+
+	return listData{
+		Snapshots:  infos,
+		Total:      total,
+		Limit:      limit,
+		Offset:     offset,
+		Page:       page,
+		Pages:      pages,
+		HasPrev:    offset > 0,
+		HasNext:    offset+limit < total,
+		PrevOffset: max(offset-limit, 0),
+		NextOffset: offset + limit,
+	}, nil
+}
+
+// searchSnapshotsData handles the search path: search query execution, DB
+// lookup, and file stat computation.
+func (s *Server) searchSnapshotsData(r *http.Request, query string) (listData, error) {
+	tsList, err := s.searchSnapshots(r.Context(), query)
+	if err != nil {
+		s.Logger.Error("list: searchSnapshots", "query", query, "err", err)
+		return listData{}, err
+	}
+
+	var snaps []meta.Snapshot
+	if len(tsList) > 0 {
+		snaps, err = s.DB.GetSnapshotsByTimestamps(r.Context(), tsList)
 		if err != nil {
-			s.Logger.Error("list: query", "limit", limit, "offset", offset, "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
+			s.Logger.Error("list: GetSnapshotsByTimestamps", "query", query, "err", err)
+			return listData{}, err
 		}
 	}
 
+	infos := fileInfoForSnaps(s.ArchiveRoot, snaps)
+	return listData{
+		Snapshots: infos,
+		Total:     len(snaps),
+		Query:     query,
+		IsSearch:  true,
+	}, nil
+}
+
+// fileInfoForSnaps computes file counts and total sizes for each snapshot by
+// walking its on-disk archive directory.
+func fileInfoForSnaps(root string, snaps []meta.Snapshot) []snapshotFileInfo {
 	infos := make([]snapshotFileInfo, 0, len(snaps))
 	for _, snap := range snaps {
 		info := snapshotFileInfo{Snapshot: snap}
-		dir := archive.SnapshotDir(s.ArchiveRoot, snap.Timestamp)
-		_ = filepath.WalkDir(dir, func(full string, d os.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
+		dir := archive.SnapshotDir(root, snap.Timestamp)
+		_ = filepath.WalkDir(dir, func(_ string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() {
 				return nil
 			}
 			info.FileCount++
-			if fi, err := d.Info(); err == nil {
+			if fi, fiErr := d.Info(); fiErr == nil {
 				info.TotalSize += fi.Size()
 			}
 			return nil
 		})
 		infos = append(infos, info)
 	}
-
-	data := listData{
-		Snapshots: infos,
-		Total:     total,
-		Query:     query,
-		IsSearch:  isSearch,
-	}
-
-	if !isSearch {
-		limit := parsePositiveInt(r, "limit", defaultPageSize)
-		offset := parsePositiveInt(r, "offset", 0)
-		pages := 0
-		if total > 0 {
-			pages = (total + limit - 1) / limit
-		}
-		page := offset/limit + 1
-		data.Limit = limit
-		data.Offset = offset
-		data.Page = page
-		data.Pages = pages
-		data.HasPrev = offset > 0
-		data.HasNext = offset+limit < total
-		data.PrevOffset = max(offset-limit, 0)
-		data.NextOffset = offset + limit
-	}
-
-	if err := s.render.render(w, "list", data); err != nil {
-		s.Logger.Error("list: render", "err", err)
-	}
+	return infos
 }
 
 // detailData is the view model for the detail page.
