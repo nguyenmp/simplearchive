@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -125,27 +126,29 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	dir := archive.SnapshotDir(s.ArchiveRoot, ts)
-	if entries, derr := os.ReadDir(dir); derr == nil {
-		formatted := snapshot.Format(ts)
-		// Files not produced by any extractor output are listed separately.
-		claimed := make(map[string]bool)
-		for _, run := range data.Runs {
-			for _, out := range run.Outputs {
-				claimed[out.Filename] = true
-			}
+	// Files not produced by any extractor output are listed separately.
+	claimed := make(map[string]bool)
+	for _, run := range data.Runs {
+		for _, out := range run.Outputs {
+			claimed[out.Filename] = true
 		}
-		data.FilePaths = make(map[string]string, len(entries))
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			name := e.Name()
-			path := "/archive/" + formatted + "/" + name
-			data.FilePaths[name] = path
-			if !claimed[name] {
-				data.OtherFiles = append(data.OtherFiles, fileLink{Name: name, Path: path})
-			}
+	}
+	data.FilePaths = make(map[string]string)
+	if err := filepath.WalkDir(dir, func(full string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
 		}
+		rel, _ := filepath.Rel(dir, full)
+		urlPath := "/archive/" + snapshot.Format(ts) + "/" + rel
+		basename := filepath.Base(rel)
+		data.FilePaths[basename] = urlPath
+		data.FilePaths[rel] = urlPath
+		if !claimed[basename] {
+			data.OtherFiles = append(data.OtherFiles, fileLink{Name: rel, Path: urlPath})
+		}
+		return nil
+	}); err != nil {
+		s.Logger.Error("detail: walk dir", "err", err)
 	}
 
 	if err := s.render.render(w, "detail", data); err != nil {

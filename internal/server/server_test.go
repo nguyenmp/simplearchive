@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -254,5 +255,46 @@ func TestHandleDelete_notFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+// TestHandleDetail_showsNestedFiles verifies that files inside subdirectories
+// (e.g. media/video.mp4) appear in the detail page as OtherFiles.
+func TestHandleDetail_showsNestedFiles(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	root := filepath.Join(t.TempDir(), "archive")
+	dir := filepath.Join(root, snapshot.Format(ts))
+	if err := os.MkdirAll(filepath.Join(dir, "media"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html></html>"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "media", "video.mp4"), []byte("fakevideo"), 0o644); err != nil {
+		t.Fatalf("WriteFile nested: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "media/video.mp4") {
+		t.Errorf("detail body missing nested file; want media/video.mp4 in body")
+	}
+	if !strings.Contains(body, "output.html") {
+		t.Errorf("detail body missing top-level file; want output.html in body")
 	}
 }
