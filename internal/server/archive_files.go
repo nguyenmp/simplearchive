@@ -47,5 +47,14 @@ func (s *Server) handleArchiveFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Security-Policy", "sandbox")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeFile(w, r, full)
+	// Use ServeContent instead of ServeFile to avoid Go's built-in redirect
+	// of /index.html to / (see net/http/fs.go). ServeContent takes a filename
+	// only for Content-Type detection, not for path-based redirects.
+	f, err := os.Open(full)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	http.ServeContent(w, r, filepath.Base(full), info.ModTime(), f)
 }

@@ -25,6 +25,9 @@ func newArchiveServer(t *testing.T) (*Server, string) {
 	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html>hi</html>"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>index</html>"), 0o644); err != nil {
+		t.Fatalf("write index: %v", err)
+	}
 	return &Server{DB: db, ArchiveRoot: root}, snapshot.Format(ts)
 }
 
@@ -77,6 +80,30 @@ func TestHandleArchiveFile_directoryRejected(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d (directory listing blocked)", rec.Code, http.StatusNotFound)
+	}
+}
+
+// TestHandleArchiveFile_indexHtmlNotRedirected verifies that requesting
+// /archive/{timestamp}/index.html does NOT redirect to /archive/{timestamp}/
+// (Go's http.ServeFile does this by default; we use ServeContent instead).
+func TestHandleArchiveFile_indexHtmlNotRedirected(t *testing.T) {
+	t.Parallel()
+	s, ts := newArchiveServer(t)
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/archive/"+ts+"/index.html", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (no redirect)", rec.Code, http.StatusOK)
+	}
+	if rec.Body.String() != "<html>index</html>" {
+		t.Errorf("body = %q, want index html", rec.Body.String())
+	}
+	// Ensure Location header is NOT set (no redirect)
+	if loc := rec.Header().Get("Location"); loc != "" {
+		t.Errorf("Location header = %q, want empty (no redirect)", loc)
 	}
 }
 
