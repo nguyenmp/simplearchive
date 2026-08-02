@@ -99,12 +99,7 @@ func (d *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) 
 	return d.db.BeginTx(ctx, opts)
 }
 
-func (d *DB) migrate(ctx context.Context) (retErr error) {
-	current, err := d.userVersion(ctx)
-	if err != nil {
-		return fmt.Errorf("read user_version: %w", err)
-	}
-
+func pendingMigrations(current int) []int {
 	versions := make([]int, 0, len(migrations))
 	for v := range migrations {
 		versions = append(versions, v)
@@ -117,6 +112,57 @@ func (d *DB) migrate(ctx context.Context) (retErr error) {
 			pending = append(pending, v)
 		}
 	}
+	return pending
+}
+
+func (d *DB) applyMigration(ctx context.Context, version int, script string) error {
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin migration %d: %w", version, err)
+	}
+	if _, err := tx.ExecContext(ctx, script); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("apply migration %d: %w", version, err)
+	}
+	if _, err := tx.ExecContext(ctx, "PRAGMA user_version = "+strconv.Itoa(version)); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("set user_version=%d: %w", version, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %d: %w", version, err)
+	}
+	return nil
+}
+
+// verifyForeignKeys reports orphaned child rows regardless of the foreign_keys
+// enforcement flag, so it works even after re-enabling enforcement via a deferred
+// call. Fail loudly rather than leave dangling references from a buggy migration.
+func (d *DB) verifyForeignKeys(ctx context.Context) error {
+	rows, err := d.db.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return fmt.Errorf("foreign_key_check: %w", err)
+	}
+	violations := 0
+	for rows.Next() {
+		violations++
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("foreign_key_check rows: %w", err)
+	}
+	if violations > 0 {
+		return fmt.Errorf("foreign_key_check reported %d FK violation(s)", violations)
+	}
+	return nil
+}
+
+func (d *DB) migrate(ctx context.Context) (retErr error) {
+	current, err := d.userVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+
+	pending := pendingMigrations(current)
 	if len(pending) == 0 {
 		return nil
 	}
@@ -136,42 +182,13 @@ func (d *DB) migrate(ctx context.Context) (retErr error) {
 	}()
 
 	for _, v := range pending {
-		script := migrations[v]
-		tx, err := d.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %d: %w", v, err)
-		}
-		if _, err := tx.ExecContext(ctx, script); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("apply migration %d: %w", v, err)
-		}
-		if _, err := tx.ExecContext(ctx, "PRAGMA user_version = "+strconv.Itoa(v)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("set user_version=%d: %w", v, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %d: %w", v, err)
+		if err := d.applyMigration(ctx, v, migrations[v]); err != nil {
+			return err
 		}
 	}
 
-	// PRAGMA foreign_key_check reports orphaned child rows regardless of the
-	// foreign_keys enforcement flag, so it works here even though we re-enable
-	// enforcement via the deferred call. Fail loudly rather than leave dangling
-	// references from a buggy migration.
-	rows, err := d.db.QueryContext(ctx, "PRAGMA foreign_key_check")
-	if err != nil {
-		return fmt.Errorf("migrate: foreign_key_check: %w", err)
-	}
-	violations := 0
-	for rows.Next() {
-		violations++
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("migrate: foreign_key_check rows: %w", err)
-	}
-	if violations > 0 {
-		return fmt.Errorf("migrate: foreign_key_check reported %d FK violation(s)", violations)
+	if err := d.verifyForeignKeys(ctx); err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
 }
