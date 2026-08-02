@@ -138,9 +138,10 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 
 // detailData is the view model for the detail page.
 type detailData struct {
-	Snapshot meta.Snapshot
-	FileCount int
-	TotalSize int64
+	Snapshot            meta.Snapshot
+	FileCount           int
+	TotalSize           int64
+	AvailableExtractors []string // names from the default pipeline (for re-run dropdown)
 	// FilePaths maps an on-disk filename to its URL path, so extractor
 	// outputs can link straight to the archived file.
 	FilePaths map[string]string
@@ -182,6 +183,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := detailData{Snapshot: snap}
+	data.AvailableExtractors = ingest.DefaultExtractorNames()
 	if runs, rerr := s.DB.ListRunsBySnapshot(r.Context(), snap.ID); rerr != nil {
 		s.Logger.Error("detail: list runs", "err", rerr)
 	} else {
@@ -231,6 +233,51 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	if err := s.render.render(w, "detail", data); err != nil {
 		s.Logger.Error("detail: render", "err", err)
 	}
+}
+
+// handleRerun accepts POST /{timestamp}/rerun: it inserts a new pending
+// extractor_runs row for the chosen extractor on an existing snapshot so the
+// worker will re-run it. The extractor name is validated against the default
+// pipeline.
+func (s *Server) handleRerun(w http.ResponseWriter, r *http.Request) {
+	tsStr := chi.URLParam(r, "timestamp")
+	ts, err := snapshot.Parse(tsStr)
+	if err != nil {
+		s.renderNotFound(w)
+		return
+	}
+
+	snap, err := s.DB.GetSnapshot(r.Context(), ts)
+	if err != nil {
+		if errors.Is(err, meta.ErrNotFound) {
+			s.renderNotFound(w)
+			return
+		}
+		s.Logger.Error("rerun: query", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	extractor := r.FormValue("extractor")
+	valid := false
+	for _, name := range ingest.DefaultExtractorNames() {
+		if name == extractor {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "unknown extractor", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.DB.InsertPendingRuns(r.Context(), snap.ID, []string{extractor}); err != nil {
+		s.Logger.Error("rerun: insert pending run", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, snapshotPath(ts), http.StatusSeeOther)
 }
 
 // handleDelete accepts POST /{timestamp}/delete: it removes the snapshot from

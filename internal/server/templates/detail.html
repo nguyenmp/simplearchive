@@ -18,14 +18,35 @@
 		<dd>{{.FileCount}} files, {{humanSize .TotalSize}}</dd>
 	</dl>
 
-	<form action="{{snapshotPath .Snapshot.Timestamp}}/delete" method="post"
-		  onsubmit="return confirm('Permanently delete this snapshot?');"
-		  class="mt-4">
-		<button type="submit"
-				class="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">
-			Delete snapshot
-		</button>
-	</form>
+	<div class="mt-4 flex flex-wrap gap-2">
+		<form action="/add" method="post">
+			<input type="hidden" name="url" value="{{.Snapshot.URL}}">
+			<button type="submit"
+					class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+				Resubmit as new snapshot
+			</button>
+		</form>
+
+		<form action="{{snapshotPath .Snapshot.Timestamp}}/rerun" method="post" class="flex items-center gap-2">
+			<select name="extractor" class="text-sm border border-gray-300 rounded bg-white text-gray-900 px-2 py-1.5">
+			{{range .AvailableExtractors}}
+				<option value="{{.}}">{{.}}</option>
+			{{end}}
+			</select>
+			<button type="submit"
+					class="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+				Re-run extractor
+			</button>
+		</form>
+
+		<form action="{{snapshotPath .Snapshot.Timestamp}}/delete" method="post"
+			  onsubmit="return confirm('Permanently delete this snapshot?');">
+			<button type="submit"
+					class="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+				Delete snapshot
+			</button>
+		</form>
+	</div>
 
 	{{if .Runs}}
 	<section class="mt-6">

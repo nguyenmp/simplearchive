@@ -459,3 +459,108 @@ func TestHandleList_withQuery_noMatches(t *testing.T) {
 		t.Errorf("body missing no-results message: %q", rec.Body.String())
 	}
 }
+
+func TestHandleRerun_enqueuesPendingRun(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: filepath.Join(t.TempDir(), "archive")}
+	r := s.Router()
+
+	form := "extractor=wget"
+	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(ts)+"/rerun", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusSeeOther, rec.Body.String())
+	}
+
+	snap, err := db.GetSnapshot(context.Background(), ts)
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	runs, err := db.ListRunsBySnapshot(context.Background(), snap.ID)
+	if err != nil {
+		t.Fatalf("ListRunsBySnapshot: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("run count = %d, want 1", len(runs))
+	}
+	if runs[0].Extractor != "wget" || runs[0].Status != "pending" {
+		t.Errorf("run = %+v, want pending wget", runs[0])
+	}
+}
+
+func TestHandleRerun_unknownExtractor(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	s := &Server{DB: db}
+	r := s.Router()
+
+	form := "extractor=not-an-extractor"
+	req := httptest.NewRequest(http.MethodPost, "/"+snapshot.Format(ts)+"/rerun", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleRerun_notFound(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	form := "extractor=wget"
+	req := httptest.NewRequest(http.MethodPost, "/9999999999999999/rerun", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleDetail_hasResubmitAndRerun(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	s := &Server{DB: db}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Resubmit as new snapshot") {
+		t.Errorf("detail body missing resubmit button")
+	}
+	if !strings.Contains(body, "Re-run extractor") {
+		t.Errorf("detail body missing rerun button")
+	}
+	if !strings.Contains(body, `<option value="wget">wget</option>`) {
+		t.Errorf("detail body missing wget option in rerun dropdown")
+	}
+}

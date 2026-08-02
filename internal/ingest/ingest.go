@@ -64,6 +64,16 @@ func defaultPipeline() []extractors.Extractor {
 	return pipeline
 }
 
+// DefaultExtractorNames returns the extractor registry names in the default
+// pipeline. It is exported so the web UI can populate a re-run dropdown.
+func DefaultExtractorNames() []string {
+	names := make([]string, 0, len(defaultPipeline()))
+	for _, ex := range defaultPipeline() {
+		names = append(names, ex.Name())
+	}
+	return names
+}
+
 // extractorByName maps an extractor's Name() to its instance so the worker can
 // dispatch a pending extractor_runs row to the right extractor.
 func extractorByName() map[string]extractors.Extractor {
