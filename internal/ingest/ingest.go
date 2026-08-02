@@ -170,7 +170,7 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 		}
 		if r.Status == extractors.StatusPending {
 			if err := db.StartRun(ctx, r.ID); err != nil {
-				slog.Warn("ingest: start run", "extractor", r.Extractor, "err", err)
+				slog.Warn("ingest: start run", "extractor", r.Extractor, "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 				continue
 			}
 			r.StartedAt = nowMicros()
@@ -180,13 +180,13 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 		title := archive.BestTitle(dir)
 		if title != "" && title != snap.Title {
 			if err := db.UpdateSnapshot(ctx, snap.Timestamp, title); err != nil {
-				slog.Warn("ingest: update title", "err", err)
+				slog.Warn("ingest: update title", "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 			}
 			snap.Title = title
 		}
 		rebuildIndex(ctx, db, dir, snap)
 		if err := db.FinishRun(ctx, r.ID, status, nowMicros(), errMsg); err != nil {
-			slog.Warn("ingest: finish run", "extractor", r.Extractor, "err", err)
+			slog.Warn("ingest: finish run", "extractor", r.Extractor, "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 		}
 	}
 
@@ -201,12 +201,12 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Extractor, r *meta.ExtractorRun, snap meta.Snapshot, dir string) (string, string) {
 	ex, ok := registry[r.Extractor]
 	if !ok {
-		slog.Warn("ingest: no extractor registered", "extractor", r.Extractor)
+		slog.Warn("ingest: no extractor registered", "extractor", r.Extractor, "url", snap.URL, "timestamp", snap.Timestamp)
 		return extractors.StatusFailed, "no extractor registered for " + r.Extractor
 	}
 	steps, runErr := ex.Run(ctx, snap.URL, dir)
 	if runErr != nil && !errors.Is(runErr, extractors.ErrSkipped) {
-		slog.Warn("ingest: extractor", "extractor", ex.Name(), "url", snap.URL, "err", runErr)
+		slog.Warn("ingest: extractor failed", "extractor", ex.Name(), "url", snap.URL, "timestamp", snap.Timestamp, "err", runErr)
 	}
 
 	status := aggregateRunStatus(steps)
@@ -220,7 +220,7 @@ func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Ext
 	}
 
 	if err := db.DeleteStepOutputs(ctx, r.ID); err != nil {
-		slog.Warn("ingest: clear step outputs", "extractor", ex.Name(), "err", err)
+		slog.Warn("ingest: clear step outputs", "extractor", ex.Name(), "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 	}
 	for _, s := range steps {
 		out := meta.StepOutput{
@@ -236,7 +236,7 @@ func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Ext
 			out.Error = s.Err.Error()
 		}
 		if _, err := db.InsertStepOutput(ctx, r.ID, out); err != nil {
-			slog.Warn("ingest: record step output", "extractor", ex.Name(), "step", s.Name, "err", err)
+			slog.Warn("ingest: record step output", "extractor", ex.Name(), "step", s.Name, "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 		}
 	}
 	return status, errMsg
@@ -277,7 +277,7 @@ func aggregateRunStatus(steps []extractors.Step) string {
 func rebuildIndex(ctx context.Context, db *meta.DB, dir string, snap meta.Snapshot) {
 	runs, err := db.ListRunsBySnapshot(ctx, snap.ID)
 	if err != nil {
-		slog.Warn("ingest: list runs for index", "err", err)
+		slog.Warn("ingest: list runs for index", "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 		return
 	}
 	steps := runsToSteps(runs)
@@ -288,7 +288,7 @@ func rebuildIndex(ctx context.Context, db *meta.DB, dir string, snap meta.Snapsh
 		Dir:       dir,
 		Steps:     steps,
 	}); err != nil {
-		slog.Warn("ingest: rebuild index.json", "err", err)
+		slog.Warn("ingest: rebuild index.json", "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 	}
 }
 
