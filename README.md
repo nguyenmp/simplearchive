@@ -85,7 +85,7 @@ We develop inside Docker so the only host dependency is Docker itself (no need t
 Workflow:
 1. `make dev-image` (or `docker build --target dev -t simplearchive-dev .`) — builds the dev image with Go toolchain + extractors.
 2. `docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test ./...` — run tests.
-3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run .` — run the server with live source mounted. Set `-e LOG_LEVEL=debug` for verbose logs (see [Environment Variables](#environment-variables)).
+3. `docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run -tags chromedp . serve` — run the server with live source mounted. Set `-e LOG_LEVEL=debug` for verbose logs (see [Environment Variables](#environment-variables)).
 4. `docker run --rm -it -v "$PWD:/app" -w /app simplearchive-dev` — drop into a shell for `go mod tidy`, `go build`, etc.
 
 ### chromedp build tag
@@ -94,7 +94,7 @@ The chromedp (headless Chromium) extractor is opt-in via the `chromedp` build ta
 
 ```
 docker run --rm -v "$PWD:/app" -w /app simplearchive-dev go test -tags chromedp ./...
-docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 simplearchive-dev go run -tags chromedp .
+docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run -tags chromedp . serve
 ```
 
 At runtime the extractor still skips (records no steps) if the `chromium` binary is not on `PATH`, so the same binary runs with or without the tag. Network restriction for the browser process is deferred to container-level isolation (see [Production deployment](#production-deployment)).
