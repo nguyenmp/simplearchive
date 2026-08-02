@@ -48,6 +48,29 @@ func TestHandleHealthz(t *testing.T) {
 	}
 }
 
+func TestHandleHealthz_HEAD(t *testing.T) {
+	t.Parallel()
+	s := &Server{DB: newTestDB(t)}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodHead, "/healthz", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("HEAD status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("HEAD content-type = %q, want application/json", got)
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("HEAD body should be empty, got %q", rec.Body.String())
+	}
+	if cl := rec.Header().Get("Content-Length"); cl != "11" {
+		t.Errorf("HEAD Content-Length = %q, want 11", cl)
+	}
+}
+
 func TestServeStatic_tailwindCSS(t *testing.T) {
 	t.Parallel()
 	s := &Server{DB: newTestDB(t)}

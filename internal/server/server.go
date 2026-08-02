@@ -57,6 +57,7 @@ func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(s.requestLogger)
 	r.Get("/healthz", s.handleHealthz)
+	r.Method("HEAD", "/healthz", http.HandlerFunc(s.handleHealthz))
 	r.Handle("/static/*", staticHandler())
 	r.Get("/", s.handleList)
 	r.Get("/add", s.handleAddForm)
@@ -137,8 +138,13 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	const body = `{"ok":true}`
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"ok":true}`))
+	if r.Method == http.MethodHead {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		return
+	}
+	_, _ = w.Write([]byte(body))
 }
 
 // runWorker is the background goroutine that drains pending snapshots. It
