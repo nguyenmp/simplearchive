@@ -17,7 +17,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /usr/local/bin/simplearchive .
+RUN CGO_ENABLED=0 go build -tags chromedp -o /usr/local/bin/simplearchive .
 
 # Dev stage — local development environment.
 # Includes runtime tools (must match runtime stage below) + Go toolchain + Tailwind CSS CLI.
