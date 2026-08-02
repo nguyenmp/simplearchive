@@ -29,7 +29,8 @@ const (
 )
 
 // Extractor archives a URL via headless Chromium into screenshot.png,
-// output.pdf, and dom_chromedp.html.
+// output.pdf, and dom_chromedp.html (or with a FileSuffix, e.g.
+// screenshot_proxy.png).
 type Extractor struct {
 	// Bin is the Chromium binary path; defaults to "chromium" when empty.
 	// Ignored when RemoteURL is set.
@@ -46,6 +47,9 @@ type Extractor struct {
 	// ws://sockpuppetbrowser:3000). When set, no local browser is launched:
 	// each Run opens one connection and the server maps it to a fresh Chrome.
 	RemoteURL string
+	// FileSuffix is appended before the file extension (e.g. "_proxy" produces
+	// screenshot_proxy.png). When empty the default filenames are used.
+	FileSuffix string
 }
 
 // Name returns the extractor registry identifier.
@@ -63,6 +67,27 @@ func (e Extractor) timeout() time.Duration {
 		return e.Timeout
 	}
 	return 60 * time.Second
+}
+
+func (e Extractor) screenshotFile() string {
+	if e.FileSuffix != "" {
+		return "screenshot" + e.FileSuffix + ".png"
+	}
+	return ScreenshotFile
+}
+
+func (e Extractor) pdfFile() string {
+	if e.FileSuffix != "" {
+		return "output" + e.FileSuffix + ".pdf"
+	}
+	return PDFFile
+}
+
+func (e Extractor) domFile() string {
+	if e.FileSuffix != "" {
+		return "dom_chromedp" + e.FileSuffix + ".html"
+	}
+	return DOMFile
 }
 
 // Run archives url into dir. In local mode it returns ErrSkipped when no
@@ -97,9 +122,9 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 	end := time.Now()
 
 	steps := []extractors.Step{
-		{Name: "screenshot", Filename: ScreenshotFile, Cmd: cmd, StartTs: start, EndTs: end},
-		{Name: "pdf", Filename: PDFFile, Cmd: cmd, StartTs: start, EndTs: end},
-		{Name: "chromedp_dom", Filename: DOMFile, Cmd: cmd, StartTs: start, EndTs: end},
+		{Name: "screenshot" + e.FileSuffix, Filename: e.screenshotFile(), Cmd: cmd, StartTs: start, EndTs: end},
+		{Name: "pdf" + e.FileSuffix, Filename: e.pdfFile(), Cmd: cmd, StartTs: start, EndTs: end},
+		{Name: "chromedp_dom" + e.FileSuffix, Filename: e.domFile(), Cmd: cmd, StartTs: start, EndTs: end},
 	}
 	if runErr != nil {
 		for i := range steps {
@@ -116,9 +141,9 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		}
 		steps[i].Status = extractors.StatusSucceeded
 	}
-	writeStep(0, ScreenshotFile, screenshot)
-	writeStep(1, PDFFile, pdf)
-	writeStep(2, DOMFile, []byte(dom))
+	writeStep(0, e.screenshotFile(), screenshot)
+	writeStep(1, e.pdfFile(), pdf)
+	writeStep(2, e.domFile(), []byte(dom))
 	return steps, nil
 }
 
