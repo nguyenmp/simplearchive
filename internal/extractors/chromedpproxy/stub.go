@@ -12,9 +12,10 @@ import (
 
 // Extractor is a no-op when the chromedp build tag is not enabled.
 type Extractor struct {
-	Bin      string
-	Timeout  time.Duration
-	ProxyURL string
+	Bin       string
+	Timeout   time.Duration
+	ProxyURL  string
+	RemoteURL string
 }
 
 // Name returns the extractor registry identifier.

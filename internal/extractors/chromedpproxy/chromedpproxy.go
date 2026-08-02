@@ -17,9 +17,10 @@ import (
 
 // Extractor is the proxy variant of chromedp.Extractor.
 type Extractor struct {
-	Bin      string
-	Timeout  time.Duration
-	ProxyURL string
+	Bin       string
+	Timeout   time.Duration
+	ProxyURL  string
+	RemoteURL string
 }
 
 // Name returns the extractor registry identifier.
@@ -29,9 +30,10 @@ func (Extractor) Name() string { return "chromedp_proxy" }
 // the output files to their *_proxy.* equivalents and updates step names.
 func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.Step, error) {
 	inner := chromedp.Extractor{
-		Bin:      e.Bin,
-		Timeout:  e.Timeout,
-		ProxyURL: e.ProxyURL,
+		Bin:       e.Bin,
+		Timeout:   e.Timeout,
+		ProxyURL:  e.ProxyURL,
+		RemoteURL: e.RemoteURL,
 	}
 	steps, err := inner.Run(ctx, pageURL, dir)
 	for i := range steps {

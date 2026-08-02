@@ -100,6 +100,21 @@ docker run --rm -it -v "$PWD:/app" -w /app -p 8080:8080 -e SERVE_ADDR=0.0.0.0:80
 
 At runtime the extractor still skips (records no steps) if the `chromium` binary is not on `PATH`, so the same binary runs with or without the tag. Network restriction for the browser process is deferred to container-level isolation (see [Production deployment](#production-deployment)).
 
+### Remote browser (CHROME_CDP_URL)
+
+Instead of launching a local Chromium, the chromedp extractor can drive a remote Chrome over a browser-level CDP websocket URL such as [sockpuppetbrowser](https://github.com/dgtlmoon/sockpuppetbrowser) (`ws://sockpuppetbrowser:3000`). Each archive run opens one connection and the proxy maps it to a fresh Chrome instance. This is how the production image stays small — it ships no `chromium`.
+
+When `SOCKS5_PROXY` is also set, the proxy variant passes `--proxy-server` to the remote Chrome via the websocket URL's query string (sockpuppetbrowser turns `--flag` query params into Chrome launch flags), so the Tor variant keeps working without a local browser.
+
+To run the remote-browser tests (skipped when `CHROME_CDP_URL` is unset):
+
+```
+docker network create sa-e2e
+docker run -d --name sa-e2e-browser --network sa-e2e --network-alias sockpuppetbrowser --cap-add SYS_ADMIN dgtlmoon/sockpuppetbrowser:latest
+docker run --rm --network sa-e2e -v "$PWD:/app" -w /app -e CHROME_CDP_URL=ws://sockpuppetbrowser:3000 simplearchive-dev go test -tags chromedp -run TestExtractor_remote -v ./internal/extractors/chromedp/
+docker rm -f sa-e2e-browser && docker network rm sa-e2e
+```
+
 I often have [the official ArchiveBox repo](https://github.com/ArchiveBox/ArchiveBox) checked out as a sibling as ~/ArchiveBoxOfficial/ for reference.
 
 Commits should be very small and self-contained.  Tasks should be broken up into many small understandable commits.  Not one commit per end-goal.
@@ -126,6 +141,8 @@ $ archivebox init
 | `LOG_LEVEL`     | `info`           | Structured log level for the JSON slog handler. One of `debug`, `info`, `warn`, `warning`, `error`. |
 | `SERVE_ADDR`    | `127.0.0.1:8080` | Listen address for `simplearchive serve`.                                                          |
 | `YT_DLP_COOKIES`| (empty)          | Path to a cookies file passed to yt-dlp via `--cookies`. Netscape and JSON formats are supported.   |
+| `CHROME_CDP_URL`| (empty)          | Browser-level CDP websocket URL (e.g. `ws://sockpuppetbrowser:3000`). When set, the chromedp extractor drives this remote browser instead of launching a local `chromium` binary. |
+| `SOCKS5_PROXY`  | (empty)          | `socks5://` proxy URL. Enables the `*_proxy` extractor variants (curl, obelisk, chromedp) that re-archive each snapshot through the proxy. |
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 

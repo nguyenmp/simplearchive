@@ -6,9 +6,10 @@
 #   docker build --target dev -t simplearchive-dev .
 #   docker build --target runtime -t simplearchive .
 #
-# IMPORTANT: wget, curl, yt-dlp, chromium, and ripgrep are runtime dependencies (the
-# Go binary shells out to them). If you add/remove a runtime tool here, keep
-# the dev and runtime stages in sync.
+# IMPORTANT: wget, curl, yt-dlp, and ripgrep are runtime dependencies (the Go
+# binary shells out to them). If you add/remove a runtime tool here, keep
+# the dev and runtime stages in sync. chromium is dev-only: in production the
+# chromedp extractor drives a remote browser via CHROME_CDP_URL (see README).
 
 # Build stage — compiles the Go binary.
 FROM golang:1.26-alpine AS build
@@ -20,7 +21,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -tags chromedp -o /usr/local/bin/simplearchive .
 
 # Dev stage — local development environment.
-# Includes runtime tools (must match runtime stage below) + Go toolchain + Tailwind CSS CLI.
+# Includes runtime tools (must match runtime stage below) + chromium (local
+# browser for the chromedp extractor/tests) + Go toolchain + Tailwind CSS CLI.
 FROM golang:1.26-alpine AS dev
 RUN apk add --no-cache \
     ca-certificates curl libgcc libstdc++ wget yt-dlp ripgrep chromium
@@ -35,11 +37,12 @@ RUN case "$(uname -m)" in \
 WORKDIR /app
 CMD ["sh"]
 
-# Runtime stage — minimal production image with runtime tools only.
+# Runtime stage — minimal production image with runtime tools only (no
+# chromium; production uses a remote browser via CHROME_CDP_URL).
 # Keep the RUN apk add list in sync with the dev stage above.
 FROM alpine:latest AS runtime
 RUN apk add --no-cache \
-    ca-certificates curl libgcc libstdc++ wget yt-dlp ripgrep chromium
+    ca-certificates curl libgcc libstdc++ wget yt-dlp ripgrep
 COPY --from=build /usr/local/bin/simplearchive /usr/local/bin/simplearchive
 WORKDIR /data
 ENV SERVE_ADDR=0.0.0.0:8080

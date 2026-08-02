@@ -20,6 +20,8 @@ type Extractor struct {
 	Timeout time.Duration
 	// ProxyURL is ignored in the stub build.
 	ProxyURL string
+	// RemoteURL is ignored in the stub build.
+	RemoteURL string
 }
 
 // Name returns the extractor registry identifier.

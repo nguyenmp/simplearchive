@@ -46,19 +46,20 @@ type Result struct {
 // available for index.json as soon as the first run finishes.
 func defaultPipeline() []extractors.Extractor {
 	proxy := proxyutil.EnvVar()
+	cdpURL := os.Getenv("CHROME_CDP_URL")
 	pipeline := []extractors.Extractor{
 		wget.DOMExtractor{},
 		wget.FaviconExtractor{},
 		headers.Extractor{ProxyURL: proxy},
 		obelisk.Extractor{},
 		ytdlp.Extractor{Cookies: os.Getenv("YT_DLP_COOKIES"), ProxyURL: proxy},
-		chromedp.Extractor{},
+		chromedp.Extractor{RemoteURL: cdpURL},
 	}
 	if proxy != "" {
 		pipeline = append(pipeline,
 			curl.Extractor{ProxyURL: proxy},
 			obeliskproxy.Extractor{ProxyURL: proxy},
-			chromedpproxy.Extractor{ProxyURL: proxy},
+			chromedpproxy.Extractor{ProxyURL: proxy, RemoteURL: cdpURL},
 		)
 	}
 	return pipeline
