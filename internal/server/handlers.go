@@ -204,31 +204,57 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := detailData{Snapshot: snap}
-	data.AvailableExtractors = ingest.DefaultExtractorNames()
-	if runs, rerr := s.DB.ListRunsBySnapshot(r.Context(), snap.ID); rerr != nil {
+	var runs []meta.ExtractorRun
+	if r, rerr := s.DB.ListRunsBySnapshot(r.Context(), snap.ID); rerr != nil {
 		s.Logger.Error("detail: list runs", "err", rerr)
 	} else {
-		data.Runs = runs
-		for _, run := range runs {
-			if run.Status == extractors.StatusPending || run.Status == extractors.StatusRunning {
-				w.Header().Set("Refresh", "1")
-				break
-			}
+		runs = r
+	}
+
+	if isAnyRunNonTerminal(runs) {
+		w.Header().Set("Refresh", "1")
+	}
+
+	data, err := s.snapshotFiles(archive.SnapshotDir(s.ArchiveRoot, ts), ts, runs)
+	if err != nil {
+		s.Logger.Error("detail: snapshot files", "err", err)
+	}
+	data.Snapshot = snap
+	data.AvailableExtractors = ingest.DefaultExtractorNames()
+	data.Runs = runs
+
+	if err := s.render.render(w, "detail", data); err != nil {
+		s.Logger.Error("detail: render", "err", err)
+	}
+}
+
+// isAnyRunNonTerminal returns true if any run is pending or running, which
+// signals the detail page to auto-refresh.
+func isAnyRunNonTerminal(runs []meta.ExtractorRun) bool {
+	for _, run := range runs {
+		if run.Status == extractors.StatusPending || run.Status == extractors.StatusRunning {
+			return true
 		}
 	}
-	dir := archive.SnapshotDir(s.ArchiveRoot, ts)
-	// Files not produced by any extractor output are listed separately.
+	return false
+}
+
+// snapshotFiles walks the snapshot directory and classifies files as claimed
+// (produced by an extractor output) or unclaimed. It returns a detailData
+// populated with FilePaths, FileSizes, FileCount, TotalSize, and OtherFiles.
+func (s *Server) snapshotFiles(dir string, ts int64, runs []meta.ExtractorRun) (detailData, error) {
 	claimed := make(map[string]bool)
-	for _, run := range data.Runs {
+	for _, run := range runs {
 		for _, out := range run.Outputs {
 			claimed[out.Filename] = true
 		}
 	}
+
+	var data detailData
 	data.FilePaths = make(map[string]string)
 	data.FileSizes = make(map[string]int64)
-	if err := filepath.WalkDir(dir, func(full string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	if err := filepath.WalkDir(dir, func(full string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() {
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, full)
@@ -249,12 +275,9 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		data.FileCount++
 		return nil
 	}); err != nil {
-		s.Logger.Error("detail: walk dir", "err", err)
+		return data, err
 	}
-
-	if err := s.render.render(w, "detail", data); err != nil {
-		s.Logger.Error("detail: render", "err", err)
-	}
+	return data, nil
 }
 
 // handleRerun accepts POST /{timestamp}/rerun: it inserts a new pending
