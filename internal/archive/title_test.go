@@ -38,23 +38,24 @@ func TestParseTitle_extractsTitle(t *testing.T) {
 func TestParseInfoJSON_extractsTitleAndWebpageURL(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name    string
-		json    string
-		title   string
-		webpage string
+		name      string
+		json      string
+		title     string
+		webpage   string
+		extractor string
 	}{
-		{"simple", `{"title":"My Video","webpage_url":"https://www.youtube.com/watch?v=abc"}`, "My Video", "https://www.youtube.com/watch?v=abc"},
-		{"whitespace", `{"title":"  Trim Me  ","webpage_url":" https://x.example.com "}`, "Trim Me", "https://x.example.com"},
-		{"empty title", `{"title":"","webpage_url":"https://x.example.com"}`, "", "https://x.example.com"},
-		{"absent", `{"id":"abc123"}`, "", ""},
-		{"invalid json", `{not json}`, "", ""},
+		{"simple", `{"title":"My Video","webpage_url":"https://www.youtube.com/watch?v=abc","extractor":"youtube"}`, "My Video", "https://www.youtube.com/watch?v=abc", "youtube"},
+		{"whitespace", `{"title":"  Trim Me  ","webpage_url":" https://x.example.com ","extractor":" generic "}`, "Trim Me", "https://x.example.com", "generic"},
+		{"empty title", `{"title":"","webpage_url":"https://x.example.com","extractor":"youtube"}`, "", "https://x.example.com", "youtube"},
+		{"absent", `{"id":"abc123"}`, "", "", ""},
+		{"invalid json", `{not json}`, "", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			title, webpageURL := ParseInfoJSON([]byte(tc.json))
-			if title != tc.title || webpageURL != tc.webpage {
-				t.Errorf("ParseInfoJSON(%q) = (%q, %q), want (%q, %q)", tc.json, title, webpageURL, tc.title, tc.webpage)
+			title, webpageURL, extractor := ParseInfoJSON([]byte(tc.json))
+			if title != tc.title || webpageURL != tc.webpage || extractor != tc.extractor {
+				t.Errorf("ParseInfoJSON(%q) = (%q, %q, %q), want (%q, %q, %q)", tc.json, title, webpageURL, extractor, tc.title, tc.webpage, tc.extractor)
 			}
 		})
 	}
@@ -118,27 +119,28 @@ func TestParseMercuryJSONTitle_extractsTitle(t *testing.T) {
 func TestBestTitle_priority(t *testing.T) {
 	t.Parallel()
 
-	// Priority 1: yt-dlp info.json whose webpage_url matches the snapshot URL's host
+	// Priority 1: yt-dlp info.json with specialized extractor
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "abc.info.json"), []byte(`{"title":"Info JSON","webpage_url":"https://www.youtube.com/watch?v=abc"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "abc.info.json"), []byte(`{"title":"Info JSON","webpage_url":"https://www.youtube.com/watch?v=abc","extractor":"youtube"}`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir, "https://www.youtube.com/watch?v=abc"); got != "Info JSON" {
-		t.Errorf("BestTitle with matching info.json = %q, want Info JSON", got)
+	if got := BestTitle(dir); got != "Info JSON" {
+		t.Errorf("BestTitle with specialized info.json = %q, want Info JSON", got)
 	}
-	// Same site, different URL shape (e.g. youtube.com/shorts/X normalized to /watch?v=X,
-	// or m.youtube.com canonicalized to www.youtube.com)
-	if got := BestTitle(dir, "https://www.youtube.com/shorts/abc"); got != "Info JSON" {
-		t.Errorf("BestTitle with same-site info.json = %q, want Info JSON", got)
+
+	// Generic extractor is NOT prioritized — falls through to HTML sources
+	dirGeneric := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dirGeneric, "icanhazip.info.json"), []byte(`{"title":"generic video #icanhazip","webpage_url":"https://icanhazip.com/","extractor":"generic"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir, "https://m.youtube.com/watch?v=abc"); got != "Info JSON" {
-		t.Errorf("BestTitle with mobile-subdomain info.json = %q, want Info JSON", got)
+	if err := os.WriteFile(filepath.Join(dirGeneric, "singlefile.html"), []byte(`<html><head><title>Page Title</title></head></html>`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir, "https://youtu.be/abc"); got != "Info JSON" {
-		t.Errorf("BestTitle with youtu.be-alias info.json = %q, want Info JSON", got)
+	if got := BestTitle(dirGeneric); got != "Page Title" {
+		t.Errorf("BestTitle with generic extractor = %q, want Page Title", got)
 	}
 
 	// Priority 2: mercury/article.json when no info.json
@@ -152,7 +154,7 @@ func TestBestTitle_priority(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir2, "singlefile.html"), []byte(`<html><head><title>Singlefile</title></head></html>`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir2, "https://example.com"); got != "Mercury" {
+	if got := BestTitle(dir2); got != "Mercury" {
 		t.Errorf("BestTitle with mercury = %q, want Mercury", got)
 	}
 
@@ -164,7 +166,7 @@ func TestBestTitle_priority(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir3, "output.html"), []byte(`<html><head><title>Output</title></head></html>`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir3, "https://example.com"); got != "Singlefile" {
+	if got := BestTitle(dir3); got != "Singlefile" {
 		t.Errorf("BestTitle with singlefile = %q, want Singlefile", got)
 	}
 
@@ -173,7 +175,7 @@ func TestBestTitle_priority(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir4, "output.html"), []byte(`<html><head><title>Output</title></head></html>`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir4, "https://example.com"); got != "Output" {
+	if got := BestTitle(dir4); got != "Output" {
 		t.Errorf("BestTitle with output = %q, want Output", got)
 	}
 
@@ -182,28 +184,28 @@ func TestBestTitle_priority(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir5, "output.html"), []byte(`<html><head></head></html>`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir5, "https://example.com"); got != "" {
+	if got := BestTitle(dir5); got != "" {
 		t.Errorf("BestTitle with no title = %q, want empty", got)
 	}
 
-	// info.json for a different host (e.g. an embedded video) loses to HTML titles...
+	// info.json with generic extractor loses to HTML titles...
 	dir6 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir6, "xyz.info.json"), []byte(`{"title":"Embedded Video","webpage_url":"https://www.youtube.com/watch?v=xyz"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir6, "xyz.info.json"), []byte(`{"title":"Generic Title","webpage_url":"https://www.youtube.com/watch?v=xyz","extractor":"generic"}`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir6, "singlefile.html"), []byte(`<html><head><title>Page Title</title></head></html>`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir6, "https://www.arscyni.cc/file/warez_your_website.html"); got != "Page Title" {
-		t.Errorf("BestTitle with embedded-video info.json = %q, want Page Title", got)
+	if got := BestTitle(dir6); got != "Page Title" {
+		t.Errorf("BestTitle with generic-extractor info.json = %q, want Page Title", got)
 	}
 
 	// ...but is used as a last resort when no HTML source has a title
 	dir7 := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir7, "xyz.info.json"), []byte(`{"title":"Embedded Video","webpage_url":"https://www.youtube.com/watch?v=xyz"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir7, "xyz.info.json"), []byte(`{"title":"Generic Title","webpage_url":"https://www.youtube.com/watch?v=xyz","extractor":"generic"}`), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if got := BestTitle(dir7, "https://www.arscyni.cc/file/warez_your_website.html"); got != "Embedded Video" {
-		t.Errorf("BestTitle with only mismatched info.json = %q, want Embedded Video", got)
+	if got := BestTitle(dir7); got != "Generic Title" {
+		t.Errorf("BestTitle with only generic-extractor info.json = %q, want Generic Title", got)
 	}
 }

@@ -260,7 +260,7 @@ func Scan(root string) ([]IndexEntry, error) {
 			continue
 		}
 		if entry.Title == "" {
-			if t := BestTitle(filepath.Dir(p), entry.URL); t != "" {
+			if t := BestTitle(filepath.Dir(p)); t != "" {
 				entry.Title = t
 			}
 		}

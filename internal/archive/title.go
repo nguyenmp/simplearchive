@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"html"
-	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -43,18 +42,19 @@ func titleOrEmpty(title string) (string, bool) {
 	return title, title != ""
 }
 
-// ParseInfoJSON extracts the "title" and "webpage_url" fields from a yt-dlp
-// info JSON document. Empty strings are returned for absent fields or invalid
-// JSON.
-func ParseInfoJSON(data []byte) (title, webpageURL string) {
+// ParseInfoJSON extracts the "title", "webpage_url", and "extractor" fields
+// from a yt-dlp info JSON document. Empty strings are returned for absent
+// fields or invalid JSON.
+func ParseInfoJSON(data []byte) (title, webpageURL, extractor string) {
 	var v struct {
 		Title      string `json:"title"`
 		WebpageURL string `json:"webpage_url"`
+		Extractor  string `json:"extractor"`
 	}
 	if err := json.Unmarshal(data, &v); err != nil {
-		return "", ""
+		return "", "", ""
 	}
-	return strings.TrimSpace(v.Title), strings.TrimSpace(v.WebpageURL)
+	return strings.TrimSpace(v.Title), strings.TrimSpace(v.WebpageURL), strings.TrimSpace(v.Extractor)
 }
 
 // domainAliases maps single-purpose shortener domains to the registered
@@ -112,24 +112,21 @@ func ParseMercuryJSONTitle(data []byte) string {
 	return strings.TrimSpace(v.Title)
 }
 
-// BestTitle returns the best available title for the snapshot in dir that
-// archived pageURL, trying sources in priority order: yt-dlp info.json when
-// its webpage_url is on the same site as pageURL, mercury/article.json,
-// obelisk singlefile HTML, then wget and curl DOM HTML. An info.json whose
-// webpage_url points at a different site (e.g. a video embedded in the
-// archived page) is used only as a last resort when no other source has a
-// title. Empty is returned when no source has a title.
-func BestTitle(dir, pageURL string) string {
+// BestTitle returns the best available title for the snapshot in dir,
+// trying sources in priority order: yt-dlp info.json, mercury/article.json,
+// obelisk singlefile HTML, then wget and curl DOM HTML. Empty is returned
+// when no source has a title.
+func BestTitle(dir string) string {
 	var infoTitle string
 	if matches, _ := filepath.Glob(filepath.Join(dir, "*.info.json")); len(matches) > 0 {
 		if data, err := os.ReadFile(matches[0]); err == nil {
-			title, webpageURL := ParseInfoJSON(data)
+			title, _, extractor := ParseInfoJSON(data)
 			if title != "" {
-				if sameSite(webpageURL, pageURL) {
+				// A specialized extractor (youtube, etc.) has high-quality
+				// metadata; the "generic" extractor does not, so demote it
+				// to fallback priority (used only if no other source has a title).
+				if extractor != "" && extractor != "generic" {
 					return title
-				}
-				if webpageURL == "" {
-					slog.Warn("archive.BestTitle: info.json missing webpage_url; demoting to fallback", "file", matches[0])
 				}
 				infoTitle = title
 			}
