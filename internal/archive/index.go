@@ -71,18 +71,15 @@ type linkJSON struct {
 	History    map[string][]archiveResult `json:"history"`
 }
 
-// WriteIndex writes an ArchiveBox-compatible per-snapshot index.json into dir.
-func WriteIndex(data IndexData) error {
-	u, err := url.Parse(data.URL)
-	if err != nil {
-		return fmt.Errorf("archive.WriteIndex: parse url: %w", err)
-	}
-
-	now := time.Now().UTC()
-	title, hasTitle := titleOrEmpty(data.Title)
-
+// buildHistory constructs the history and latest maps from IndexData. When
+// Steps is non-empty, history/latest are built from it (keyed by Step.Name).
+// Otherwise Outputs is used as a fallback that derives extractor names from
+// filenames. A title entry is added when the title is non-empty.
+func buildHistory(data IndexData, u *url.URL) (map[string][]archiveResult, map[string]string) {
 	latest := map[string]string{}
 	history := map[string][]archiveResult{}
+	now := time.Now().UTC()
+
 	if len(data.Steps) > 0 {
 		for _, s := range data.Steps {
 			cmd := s.Cmd
@@ -115,6 +112,8 @@ func WriteIndex(data IndexData) error {
 			}}
 		}
 	}
+
+	title, hasTitle := titleOrEmpty(data.Title)
 	if hasTitle {
 		latest["title"] = title
 		history["title"] = []archiveResult{{
@@ -128,6 +127,19 @@ func WriteIndex(data IndexData) error {
 		}}
 	}
 
+	return history, latest
+}
+
+// WriteIndex writes an ArchiveBox-compatible per-snapshot index.json into dir.
+func WriteIndex(data IndexData) error {
+	u, err := url.Parse(data.URL)
+	if err != nil {
+		return fmt.Errorf("archive.WriteIndex: parse url: %w", err)
+	}
+
+	history, latest := buildHistory(data, u)
+
+	title, hasTitle := titleOrEmpty(data.Title)
 	var titlePtr *string
 	if hasTitle {
 		titlePtr = &title
