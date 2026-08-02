@@ -4,9 +4,7 @@
 // which runs each step, records its outputs, and rebuilds the per-snapshot
 // index.json as each extractor finishes. Steps are independent: no step is
 // fatal to the others, and a snapshot's state is derived from its
-// extractor_runs (succeeded if any run succeeded, failed if any failed,
-// pending/running if any are non-terminal, skipped otherwise),
-// not stored on the snapshot.
+// extractor_runs (see meta.Snapshot), not stored on the snapshot.
 package ingest
 
 import (

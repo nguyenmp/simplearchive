@@ -13,9 +13,7 @@ import (
 // surrogate id. The caller already holds the timestamp it passed in (the
 // ArchiveBox directory name); the id is the foreign key target used by
 // extractor_runs. A snapshot has no stored status: its state is derived from
-// its extractor_runs: succeeded if any run succeeded, failed if any failed,
-// pending/running if any are non-terminal, skipped otherwise. Imported
-// snapshots with no extractor_runs default to succeeded.
+// its extractor_runs (see Snapshot type docs for the derivation rule).
 func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, error) {
 	now := time.Now().UnixMicro()
 	res, err := d.db.ExecContext(ctx, `
@@ -80,8 +78,7 @@ func upsertSnapshot(ctx context.Context, q execer, e archive.IndexEntry) error {
 // UpdateSnapshot records a snapshot's title after archiving, bumping updated_at.
 // A null title is stored when title is the empty string. It returns an error if
 // no row matches the timestamp. Snapshot status is not stored; it is derived
-// from the snapshot's extractor_runs: succeeded if any run succeeded, failed
-// if any failed, pending/running if any are non-terminal, skipped otherwise.
+// from the snapshot's extractor_runs (see Snapshot type docs).
 func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
 	now := time.Now().UnixMicro()
 	var titleArg any

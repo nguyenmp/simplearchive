@@ -1,6 +1,5 @@
 -- v5: drop snapshot-level status and is_archived. Snapshot state is derived
--- from its extractor_runs: succeeded if any run succeeded, failed if any
--- failed, pending/running if any are non-terminal, skipped otherwise.
+-- from its extractor_runs (see README Data Model for derivation rules).
 -- This removes the redundant, stale-able snapshot-level status in
 -- favor of per-step state as the single source of truth: a snapshot with no
 -- extractor_runs rows is treated as succeeded (the imported-snapshot case),
