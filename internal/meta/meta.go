@@ -48,13 +48,13 @@ var migrations = map[int]string{
 
 // latestVersion returns the highest migration version number.
 func latestVersion() int {
-	v := 0
+	maxVersion := 0
 	for version := range migrations {
-		if version > v {
-			v = version
+		if version > maxVersion {
+			maxVersion = version
 		}
 	}
-	return v
+	return maxVersion
 }
 
 func dsn(path string) string {

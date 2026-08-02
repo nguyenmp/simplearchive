@@ -81,20 +81,20 @@ func buildHistory(data IndexData, u *url.URL) (map[string][]archiveResult, map[s
 	now := time.Now().UTC()
 
 	if len(data.Steps) > 0 {
-		for _, s := range data.Steps {
-			cmd := s.Cmd
+		for _, step := range data.Steps {
+			cmd := step.Cmd
 			if cmd == nil {
 				cmd = []string{}
 			}
-			latest[s.Name] = s.Filename
-			history[s.Name] = []archiveResult{{
+			latest[step.Name] = step.Filename
+			history[step.Name] = []archiveResult{{
 				Cmd:     cmd,
-				Output:  s.Filename,
+				Output:  step.Filename,
 				Pwd:     data.Dir,
 				Schema:  "ArchiveResult",
-				StartTs: s.StartTs.UTC(),
-				EndTs:   s.EndTs.UTC(),
-				Status:  s.Status,
+				StartTs: step.StartTs.UTC(),
+				EndTs:   step.EndTs.UTC(),
+				Status:  step.Status,
 			}}
 		}
 	} else {
@@ -145,7 +145,7 @@ func WriteIndex(data IndexData) error {
 		titlePtr = &title
 	}
 
-	doc := linkJSON{
+	link := linkJSON{
 		Schema:     "Link",
 		URL:        data.URL,
 		Timestamp:  snapshot.Format(data.Timestamp),
@@ -162,12 +162,12 @@ func WriteIndex(data IndexData) error {
 		History:    history,
 	}
 
-	enc, err := json.MarshalIndent(doc, "", "    ")
+	jsonBytes, err := json.MarshalIndent(link, "", "    ")
 	if err != nil {
 		return fmt.Errorf("archive.WriteIndex: marshal: %w", err)
 	}
 	path := filepath.Join(data.Dir, IndexFile)
-	if err := os.WriteFile(path, append(enc, '\n'), extractors.DefaultFilePerm); err != nil {
+	if err := os.WriteFile(path, append(jsonBytes, '\n'), extractors.DefaultFilePerm); err != nil {
 		return fmt.Errorf("archive.WriteIndex: write %q: %w", path, err)
 	}
 	return nil
@@ -235,21 +235,21 @@ func ReadIndex(path string) (IndexEntry, error) {
 	if err != nil {
 		return IndexEntry{}, fmt.Errorf("archive.ReadIndex: read %q: %w", path, err)
 	}
-	var doc linkJSON
-	if err := json.Unmarshal(raw, &doc); err != nil {
+	var link linkJSON
+	if err := json.Unmarshal(raw, &link); err != nil {
 		return IndexEntry{}, fmt.Errorf("archive.ReadIndex: unmarshal %q: %w", path, err)
 	}
-	ts, err := snapshot.Parse(doc.Timestamp)
+	ts, err := snapshot.Parse(link.Timestamp)
 	if err != nil {
 		return IndexEntry{}, fmt.Errorf("archive.ReadIndex: %q: %w", path, err)
 	}
 	entry := IndexEntry{
 		Timestamp:  ts,
-		URL:        doc.URL,
-		IsArchived: doc.IsArchived,
+		URL:        link.URL,
+		IsArchived: link.IsArchived,
 	}
-	if doc.Title != nil {
-		entry.Title = *doc.Title
+	if link.Title != nil {
+		entry.Title = *link.Title
 	}
 	return entry, nil
 }
@@ -265,14 +265,14 @@ func Scan(root string) ([]IndexEntry, error) {
 		return nil, fmt.Errorf("archive.Scan: glob %q: %w", pattern, err)
 	}
 	entries := make([]IndexEntry, 0, len(matches))
-	for _, p := range matches {
-		entry, err := ReadIndex(p)
+	for _, indexPath := range matches {
+		entry, err := ReadIndex(indexPath)
 		if err != nil {
-			slog.Debug("archive.Scan: skipping unreadable index", "path", p, "err", err)
+			slog.Debug("archive.Scan: skipping unreadable index", "path", indexPath, "err", err)
 			continue
 		}
 		if entry.Title == "" {
-			if t := BestTitle(filepath.Dir(p)); t != "" {
+			if t := BestTitle(filepath.Dir(indexPath)); t != "" {
 				entry.Title = t
 			}
 		}

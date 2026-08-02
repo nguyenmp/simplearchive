@@ -96,14 +96,14 @@ func timeAgo(timestamp int64) string {
 }
 
 // humanSize renders a byte count as a human-readable string (B, KB, MB).
-func humanSize(n int64) string {
+func humanSize(bytes int64) string {
 	switch {
-	case n < 1024:
-		return fmt.Sprintf("%d B", n)
-	case n < 1024*1024:
-		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	case bytes < 1024:
+		return fmt.Sprintf("%d B", bytes)
+	case bytes < 1024*1024:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
 	default:
-		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
+		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
 	}
 }
 

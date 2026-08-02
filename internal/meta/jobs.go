@@ -108,12 +108,12 @@ func (d *DB) StartRun(ctx context.Context, runID int64) error {
 	if err != nil {
 		return fmt.Errorf("meta.StartRun: update: %w", err)
 	}
-	n, err := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("meta.StartRun: rows affected: %w", err)
 	}
-	if n != 1 {
-		return fmt.Errorf("meta.StartRun: run %d not pending (rows affected %d)", runID, n)
+	if rowsAffected != 1 {
+		return fmt.Errorf("meta.StartRun: run %d not pending (rows affected %d)", runID, rowsAffected)
 	}
 	return nil
 }
@@ -136,11 +136,11 @@ func (d *DB) FinishRun(ctx context.Context, runID int64, status string, finished
 	if err != nil {
 		return fmt.Errorf("meta.FinishRun: update: %w", err)
 	}
-	n, err := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("meta.FinishRun: rows affected: %w", err)
 	}
-	if n != 1 {
+	if rowsAffected != 1 {
 		return fmt.Errorf("meta.FinishRun: no row for run %d", runID)
 	}
 	return nil

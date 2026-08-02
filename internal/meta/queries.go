@@ -154,11 +154,11 @@ func (d *DB) DeleteSnapshot(ctx context.Context, timestamp int64) error {
 	if err != nil {
 		return fmt.Errorf("meta.DeleteSnapshot: %w", err)
 	}
-	n, err := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("meta.DeleteSnapshot: rows affected: %w", err)
 	}
-	if n == 0 {
+	if rowsAffected == 0 {
 		return ErrNotFound
 	}
 	return nil

@@ -145,19 +145,19 @@ func (s *Server) searchSnapshotsData(r *http.Request, query string) (listData, e
 func fileInfoForSnaps(root string, snaps []meta.Snapshot) []snapshotFileInfo {
 	infos := make([]snapshotFileInfo, 0, len(snaps))
 	for _, snap := range snaps {
-		info := snapshotFileInfo{Snapshot: snap}
+		snapInfo := snapshotFileInfo{Snapshot: snap}
 		dir := archive.SnapshotDir(root, snap.Timestamp)
-		_ = filepath.WalkDir(dir, func(_ string, d os.DirEntry, walkErr error) error {
-			if walkErr != nil || d.IsDir() {
+		_ = filepath.WalkDir(dir, func(_ string, dirEntry os.DirEntry, walkErr error) error {
+			if walkErr != nil || dirEntry.IsDir() {
 				return nil
 			}
-			info.FileCount++
-			if fi, fiErr := d.Info(); fiErr == nil {
-				info.TotalSize += fi.Size()
+			snapInfo.FileCount++
+			if fi, fiErr := dirEntry.Info(); fiErr == nil {
+				snapInfo.TotalSize += fi.Size()
 			}
 			return nil
 		})
-		infos = append(infos, info)
+		infos = append(infos, snapInfo)
 	}
 	return infos
 }
@@ -257,8 +257,8 @@ func (s *Server) snapshotFiles(dir string, timestamp int64, runs []meta.Extracto
 	var data detailData
 	data.FilePaths = make(map[string]string)
 	data.FileSizes = make(map[string]int64)
-	if err := filepath.WalkDir(dir, func(full string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil || d.IsDir() {
+	if err := filepath.WalkDir(dir, func(full string, dirEntry os.DirEntry, walkErr error) error {
+		if walkErr != nil || dirEntry.IsDir() {
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, full)
@@ -267,7 +267,7 @@ func (s *Server) snapshotFiles(dir string, timestamp int64, runs []meta.Extracto
 		data.FilePaths[basename] = urlPath
 		data.FilePaths[rel] = urlPath
 		var size int64
-		if fi, err := d.Info(); err == nil {
+		if fi, err := dirEntry.Info(); err == nil {
 			size = fi.Size()
 			data.TotalSize += size
 			data.FileSizes[basename] = size
@@ -414,15 +414,15 @@ func snapshotPath(timestamp int64) string {
 }
 
 func parsePositiveInt(r *http.Request, key string, def int) int {
-	v := r.URL.Query().Get(key)
-	if v == "" {
+	queryValue := r.URL.Query().Get(key)
+	if queryValue == "" {
 		return def
 	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n < 0 {
+	parsedInt, err := strconv.Atoi(queryValue)
+	if err != nil || parsedInt < 0 {
 		return def
 	}
-	return n
+	return parsedInt
 }
 
 // ErrRipgrepNotFound is returned by searchSnapshots when the ripgrep (rg)

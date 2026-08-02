@@ -41,10 +41,10 @@ func (c *CLI) runImport(ctx context.Context, args []string) int {
 		}
 	}()
 
-	for _, e := range entries {
-		if err := meta.UpsertSnapshotTx(ctx, tx, e); err != nil {
-			c.Logger.Error("import: upsert", "timestamp", e.Timestamp, "url", e.URL, "err", err)
-			fmt.Fprintf(c.Stderr, "import: failed to upsert snapshot %d (%s): %v\n", e.Timestamp, e.URL, err)
+	for _, entry := range entries {
+		if err := meta.UpsertSnapshotTx(ctx, tx, entry); err != nil {
+			c.Logger.Error("import: upsert", "timestamp", entry.Timestamp, "url", entry.URL, "err", err)
+			fmt.Fprintf(c.Stderr, "import: failed to upsert snapshot %d (%s): %v\n", entry.Timestamp, entry.URL, err)
 			return 1
 		}
 	}

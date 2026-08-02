@@ -199,14 +199,14 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 // A skipped extractor (ErrSkipped) records no outputs; other failures record
 // the error. Failures are logged at warn but never abort the snapshot.
 func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Extractor, run *meta.ExtractorRun, snap meta.Snapshot, dir string) (string, string) {
-	ex, ok := registry[run.Extractor]
+	extractor, ok := registry[run.Extractor]
 	if !ok {
 		slog.Warn("ingest: no extractor registered", "extractor", run.Extractor, "url", snap.URL, "timestamp", snap.Timestamp)
 		return extractors.StatusFailed, "no extractor registered for " + run.Extractor
 	}
-	steps, runErr := ex.Run(ctx, snap.URL, dir)
+	steps, runErr := extractor.Run(ctx, snap.URL, dir)
 	if runErr != nil && !errors.Is(runErr, extractors.ErrSkipped) {
-		slog.Warn("ingest: extractor failed", "extractor", ex.Name(), "url", snap.URL, "timestamp", snap.Timestamp, "err", runErr)
+		slog.Warn("ingest: extractor failed", "extractor", extractor.Name(), "url", snap.URL, "timestamp", snap.Timestamp, "err", runErr)
 	}
 
 	status := aggregateRunStatus(steps)
@@ -220,7 +220,7 @@ func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Ext
 	}
 
 	if err := db.DeleteStepOutputs(ctx, run.ID); err != nil {
-		slog.Warn("ingest: clear step outputs", "extractor", ex.Name(), "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
+		slog.Warn("ingest: clear step outputs", "extractor", extractor.Name(), "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 	}
 	for _, step := range steps {
 		out := meta.StepOutput{
@@ -236,7 +236,7 @@ func runOne(ctx context.Context, db *meta.DB, registry map[string]extractors.Ext
 			out.Error = step.Err.Error()
 		}
 		if _, err := db.InsertStepOutput(ctx, run.ID, out); err != nil {
-			slog.Warn("ingest: record step output", "extractor", ex.Name(), "step", step.Name, "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
+			slog.Warn("ingest: record step output", "extractor", extractor.Name(), "step", step.Name, "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 		}
 	}
 	return status, errMsg
