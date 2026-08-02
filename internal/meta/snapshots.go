@@ -16,7 +16,7 @@ import (
 // its extractor_runs (see the Deferred milestone).
 func (d *DB) CreateSnapshot(ctx context.Context, url string, ts int64) (int64, error) {
 	now := time.Now().UnixMicro()
-	res, err := d.ExecContext(ctx, `
+	res, err := d.db.ExecContext(ctx, `
 		INSERT INTO snapshots (timestamp, url, title, created_at, updated_at)
 		VALUES (?, ?, NULL, ?, ?)`,
 		ts, url, now, now)
@@ -44,7 +44,7 @@ type execer interface {
 // 'simplearchive import' idempotent and safe to re-run. A snapshot has no
 // stored status; imported snapshots (no extractor_runs) derive to succeeded.
 func (d *DB) UpsertSnapshot(ctx context.Context, e archive.IndexEntry) error {
-	if err := upsertSnapshot(ctx, d.DB, e); err != nil {
+	if err := upsertSnapshot(ctx, d.db, e); err != nil {
 		return fmt.Errorf("meta.UpsertSnapshot: %w", err)
 	}
 	return nil
@@ -85,7 +85,7 @@ func (d *DB) UpdateSnapshot(ctx context.Context, ts int64, title string) error {
 	if title != "" {
 		titleArg = title
 	}
-	res, err := d.ExecContext(ctx, `
+	res, err := d.db.ExecContext(ctx, `
 		UPDATE snapshots
 		   SET title = ?, updated_at = ?
 		 WHERE timestamp = ?`,

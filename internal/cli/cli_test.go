@@ -83,22 +83,23 @@ func TestRun_import_loadsSnapshotsIntoDB(t *testing.T) {
 		t.Fatalf("stdout = %q, want imported summary", out.String())
 	}
 
-	var n int
-	if err := db.QueryRow("SELECT count(*) FROM snapshots").Scan(&n); err != nil {
+	_, total, err := db.ListSnapshots(context.Background(), 0, 0)
+	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
-	if n != 2 {
-		t.Fatalf("snapshot count = %d, want 2", n)
+	if total != 2 {
+		t.Fatalf("snapshot count = %d, want 2", total)
 	}
-	var urlA, urlB string
-	if err := db.QueryRow("SELECT url FROM snapshots WHERE timestamp = ?", 1700000000000001).Scan(&urlA); err != nil {
+	snapA, err := db.GetSnapshot(context.Background(), 1700000000000001)
+	if err != nil {
 		t.Fatalf("query A: %v", err)
 	}
-	if err := db.QueryRow("SELECT url FROM snapshots WHERE timestamp = ?", 1700000000000002).Scan(&urlB); err != nil {
+	snapB, err := db.GetSnapshot(context.Background(), 1700000000000002)
+	if err != nil {
 		t.Fatalf("query B: %v", err)
 	}
-	if urlA != "https://a.example.com" || urlB != "https://b.example.com" {
-		t.Errorf("urls = %q, %q", urlA, urlB)
+	if snapA.URL != "https://a.example.com" || snapB.URL != "https://b.example.com" {
+		t.Errorf("urls = %q, %q", snapA.URL, snapB.URL)
 	}
 }
 
@@ -133,11 +134,11 @@ func TestRun_import_isIdempotent(t *testing.T) {
 		t.Fatalf("second import exit = %d, want 0", got)
 	}
 
-	var n int
-	if err := db.QueryRow("SELECT count(*) FROM snapshots").Scan(&n); err != nil {
+	_, total, err := db.ListSnapshots(context.Background(), 0, 0)
+	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("snapshot count = %d, want 1 after re-import", n)
+	if total != 1 {
+		t.Fatalf("snapshot count = %d, want 1 after re-import", total)
 	}
 }

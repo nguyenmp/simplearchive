@@ -51,12 +51,12 @@ func TestEnqueue_RunNext_archivesSnapshot(t *testing.T) {
 
 	// The snapshot's title is recorded (a snapshot has no stored status; its
 	// succeeded state is derived from its extractor_runs).
-	var title string
-	if err := db.QueryRow("SELECT title FROM snapshots WHERE timestamp = ?", res.Timestamp).Scan(&title); err != nil {
+	snap, err := db.GetSnapshot(context.Background(), res.Timestamp)
+	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if title != "Example" {
-		t.Errorf("title = %q, want Example", title)
+	if snap.Title != "Example" {
+		t.Errorf("title = %q, want Example", snap.Title)
 	}
 
 	// On-disk outputs exist.

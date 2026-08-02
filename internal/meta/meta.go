@@ -65,7 +65,7 @@ func dsn(path string) string {
 }
 
 type DB struct {
-	*sql.DB
+	db *sql.DB
 }
 
 func Open(ctx context.Context, path string) (*DB, error) {
@@ -89,10 +89,14 @@ func Open(ctx context.Context, path string) (*DB, error) {
 }
 
 func (d *DB) Close() error {
-	if d == nil || d.DB == nil {
+	if d == nil || d.db == nil {
 		return nil
 	}
-	return d.DB.Close()
+	return d.db.Close()
+}
+
+func (d *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	return d.db.BeginTx(ctx, opts)
 }
 
 func (d *DB) migrate(ctx context.Context) (retErr error) {
@@ -122,18 +126,18 @@ func (d *DB) migrate(ctx context.Context) (retErr error) {
 	// dropping a parent table while FK enforcement is on, so disable it for the
 	// migration run and re-enable + verify afterwards. Each migration's data
 	// copy preserves referential integrity by construction.
-	if _, err := d.ExecContext(ctx, "PRAGMA foreign_keys=off"); err != nil {
+	if _, err := d.db.ExecContext(ctx, "PRAGMA foreign_keys=off"); err != nil {
 		return fmt.Errorf("migrate: disable foreign_keys: %w", err)
 	}
 	defer func() {
-		if _, err := d.ExecContext(ctx, "PRAGMA foreign_keys=on"); err != nil && retErr == nil {
+		if _, err := d.db.ExecContext(ctx, "PRAGMA foreign_keys=on"); err != nil && retErr == nil {
 			retErr = fmt.Errorf("migrate: re-enable foreign_keys: %w", err)
 		}
 	}()
 
 	for _, v := range pending {
 		script := migrations[v]
-		tx, err := d.BeginTx(ctx, nil)
+		tx, err := d.db.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("begin migration %d: %w", v, err)
 		}
@@ -154,7 +158,7 @@ func (d *DB) migrate(ctx context.Context) (retErr error) {
 	// foreign_keys enforcement flag, so it works here even though we re-enable
 	// enforcement via the deferred call. Fail loudly rather than leave dangling
 	// references from a buggy migration.
-	rows, err := d.QueryContext(ctx, "PRAGMA foreign_key_check")
+	rows, err := d.db.QueryContext(ctx, "PRAGMA foreign_key_check")
 	if err != nil {
 		return fmt.Errorf("migrate: foreign_key_check: %w", err)
 	}
@@ -174,7 +178,7 @@ func (d *DB) migrate(ctx context.Context) (retErr error) {
 
 func (d *DB) userVersion(ctx context.Context) (int, error) {
 	var v int
-	if err := d.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v); err != nil {
+	if err := d.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v); err != nil {
 		return 0, err
 	}
 	return v, nil

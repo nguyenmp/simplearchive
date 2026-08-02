@@ -12,7 +12,7 @@ import (
 // has no started_at/finished_at yet (NULL). Runs are claimed (pending->running)
 // later by ClaimNextSnapshot.
 func (d *DB) InsertPendingRuns(ctx context.Context, snapshotID int64, extractors []string) error {
-	tx, err := d.BeginTx(ctx, nil)
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("meta.InsertPendingRuns: begin: %w", err)
 	}
@@ -51,7 +51,7 @@ func (d *DB) InsertPendingRuns(ctx context.Context, snapshotID int64, extractors
 // is "running", so two workers never interleave writes to the same snapshot's
 // index.json.
 func (d *DB) ClaimNextSnapshot(ctx context.Context) (int64, bool, error) {
-	tx, err := d.BeginTx(ctx, nil)
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, false, fmt.Errorf("meta.ClaimNextSnapshot: begin: %w", err)
 	}
@@ -101,7 +101,7 @@ func (d *DB) ClaimNextSnapshot(ctx context.Context) (int64, bool, error) {
 // "currently executing" rather than "claimed by the snapshot lock".
 func (d *DB) StartRun(ctx context.Context, runID int64) error {
 	now := time.Now().UnixMicro()
-	res, err := d.ExecContext(ctx, `
+	res, err := d.db.ExecContext(ctx, `
 		UPDATE extractor_runs
 		   SET status = 'running', started_at = ?
 		 WHERE id = ? AND status = 'pending'`, now, runID)
@@ -129,7 +129,7 @@ func (d *DB) FinishRun(ctx context.Context, runID int64, status string, finished
 	if errMsg != "" {
 		errArg = errMsg
 	}
-	res, err := d.ExecContext(ctx, `
+	res, err := d.db.ExecContext(ctx, `
 		UPDATE extractor_runs
 		   SET status = ?, finished_at = ?, error = ?
 		 WHERE id = ?`, status, finArg, errArg, runID)
@@ -150,7 +150,7 @@ func (d *DB) FinishRun(ctx context.Context, runID int64, status string, finished
 // re-recording a run's outputs so a re-run (e.g. after a crash left a run
 // "running") does not accumulate duplicate output rows.
 func (d *DB) DeleteStepOutputs(ctx context.Context, runID int64) error {
-	if _, err := d.ExecContext(ctx, `DELETE FROM step_outputs WHERE run_id = ?`, runID); err != nil {
+	if _, err := d.db.ExecContext(ctx, `DELETE FROM step_outputs WHERE run_id = ?`, runID); err != nil {
 		return fmt.Errorf("meta.DeleteStepOutputs: delete: %w", err)
 	}
 	return nil

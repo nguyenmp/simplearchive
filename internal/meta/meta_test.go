@@ -11,7 +11,7 @@ import (
 func userVersion(t *testing.T, db *DB) int {
 	t.Helper()
 	var v int
-	if err := db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
+	if err := db.db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
 	return v
@@ -25,7 +25,7 @@ func TestOpen_memory(t *testing.T) {
 	}
 	defer db.Close()
 
-	if db.DB == nil {
+	if db.db == nil {
 		t.Fatal("opened DB has nil sql.DB")
 	}
 }
@@ -75,25 +75,25 @@ func TestMigrate_freshCreatesSnapshotsTable(t *testing.T) {
 	if got := userVersion(t, db); got != lv {
 		t.Fatalf("user_version = %d, want %d", got, lv)
 	}
-	if _, err := db.Exec("SELECT 1 FROM snapshots LIMIT 1"); err != nil {
+	if _, err := db.db.Exec("SELECT 1 FROM snapshots LIMIT 1"); err != nil {
 		t.Fatalf("snapshots table not queryable after fresh open: %v", err)
 	}
-	if _, err := db.Exec("SELECT 1 FROM extractor_runs LIMIT 1"); err != nil {
+	if _, err := db.db.Exec("SELECT 1 FROM extractor_runs LIMIT 1"); err != nil {
 		t.Fatalf("extractor_runs table not queryable after fresh open: %v", err)
 	}
-	if _, err := db.Exec("SELECT 1 FROM step_outputs LIMIT 1"); err != nil {
+	if _, err := db.db.Exec("SELECT 1 FROM step_outputs LIMIT 1"); err != nil {
 		t.Fatalf("step_outputs table not queryable after fresh open: %v", err)
 	}
 	// v6 added ON DELETE CASCADE to FKs, v5 dropped snapshot-level status and is_archived.
-	if _, err := db.Exec("SELECT status FROM snapshots LIMIT 1"); err == nil {
+	if _, err := db.db.Exec("SELECT status FROM snapshots LIMIT 1"); err == nil {
 		t.Errorf("snapshots.status column should have been dropped")
 	}
-	if _, err := db.Exec("SELECT is_archived FROM snapshots LIMIT 1"); err == nil {
+	if _, err := db.db.Exec("SELECT is_archived FROM snapshots LIMIT 1"); err == nil {
 		t.Errorf("snapshots.is_archived column should have been dropped")
 	}
 	// v3 added a surrogate id primary key to snapshots.
 	var id int64
-	if err := db.QueryRow("SELECT id FROM snapshots LIMIT 1").Scan(&id); err == nil {
+	if err := db.db.QueryRow("SELECT id FROM snapshots LIMIT 1").Scan(&id); err == nil {
 		t.Errorf("fresh snapshots should be empty, but scanned id=%d", id)
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("query id from snapshots: %v", err)
@@ -158,7 +158,7 @@ func seedV2DB(t *testing.T, path string, ts int64, outName string) {
 
 func assertNoFKViolations(t *testing.T, db *DB) {
 	t.Helper()
-	rows, err := db.QueryContext(context.Background(), "PRAGMA foreign_key_check")
+	rows, err := db.db.QueryContext(context.Background(), "PRAGMA foreign_key_check")
 	if err != nil {
 		t.Fatalf("foreign_key_check: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestMigrate_v3RebuildsSnapshotsWithSurrogateId(t *testing.T) {
 
 	var id int64
 	var gotTS int64
-	if err := db.QueryRowContext(ctx,
+	if err := db.db.QueryRowContext(ctx,
 		"SELECT id, timestamp FROM snapshots WHERE timestamp = ?", ts).Scan(&id, &gotTS); err != nil {
 		t.Fatalf("query migrated snapshot: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 	// One per-extractor run, grouped from the legacy "dom" output under "wget".
 	var runID, snapshotID int64
 	var extractor, status string
-	if err := db.QueryRowContext(ctx, `
+	if err := db.db.QueryRowContext(ctx, `
 		SELECT id, snapshot_id, extractor, status FROM extractor_runs`).Scan(
 		&runID, &snapshotID, &extractor, &status); err != nil {
 		t.Fatalf("query extractor_runs: %v", err)
@@ -249,7 +249,7 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 		t.Errorf("status = %q, want succeeded", status)
 	}
 	var snapID int64
-	if err := db.QueryRowContext(ctx, "SELECT id FROM snapshots WHERE timestamp = ?", ts).Scan(&snapID); err != nil {
+	if err := db.db.QueryRowContext(ctx, "SELECT id FROM snapshots WHERE timestamp = ?", ts).Scan(&snapID); err != nil {
 		t.Fatalf("query snapshot id: %v", err)
 	}
 	if snapshotID != snapID {
@@ -258,7 +258,7 @@ func TestMigrate_v4ReshapesExtractorRunsToPerExtractor(t *testing.T) {
 
 	// One step_outputs row carrying the legacy output name and filename.
 	var name, filename string
-	if err := db.QueryRowContext(ctx, `
+	if err := db.db.QueryRowContext(ctx, `
 		SELECT name, COALESCE(filename, '') FROM step_outputs WHERE run_id = ?`, runID).Scan(&name, &filename); err != nil {
 		t.Fatalf("query step_outputs: %v", err)
 	}
@@ -310,18 +310,18 @@ func TestMigrate_v6OnDeleteCascade(t *testing.T) {
 	}
 
 	// Deleting the snapshot should cascade to extractor_runs and step_outputs.
-	if _, err := db.ExecContext(ctx, "DELETE FROM snapshots WHERE id = ?", snapshotID); err != nil {
+	if _, err := db.db.ExecContext(ctx, "DELETE FROM snapshots WHERE id = ?", snapshotID); err != nil {
 		t.Fatalf("DELETE snapshot: %v", err)
 	}
 
 	var count int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM extractor_runs WHERE snapshot_id = ?", snapshotID).Scan(&count); err != nil {
+	if err := db.db.QueryRowContext(ctx, "SELECT count(*) FROM extractor_runs WHERE snapshot_id = ?", snapshotID).Scan(&count); err != nil {
 		t.Fatalf("count extractor_runs: %v", err)
 	}
 	if count != 0 {
 		t.Fatalf("extractor_runs count = %d after snapshot delete, want 0", count)
 	}
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM step_outputs").Scan(&count); err != nil {
+	if err := db.db.QueryRowContext(ctx, "SELECT count(*) FROM step_outputs").Scan(&count); err != nil {
 		t.Fatalf("count step_outputs: %v", err)
 	}
 	if count != 0 {

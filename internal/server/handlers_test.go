@@ -423,12 +423,15 @@ func TestHandleAddSubmit_success(t *testing.T) {
 	}
 
 	// The snapshot was persisted to the DB.
-	var n int
-	if err := db.QueryRow("SELECT count(*) FROM snapshots WHERE url = ?", upstream.URL).Scan(&n); err != nil {
+	snaps, _, err := db.ListSnapshots(context.Background(), 0, 0)
+	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if n != 1 {
-		t.Errorf("snapshot count = %d, want 1", n)
+	if len(snaps) != 1 {
+		t.Errorf("snapshot count = %d, want 1", len(snaps))
+	}
+	if len(snaps) > 0 && snaps[0].URL != upstream.URL {
+		t.Errorf("url = %q, want %q", snaps[0].URL, upstream.URL)
 	}
 }
 

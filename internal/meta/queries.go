@@ -38,11 +38,11 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 	}
 
 	var total int
-	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM snapshots").Scan(&total); err != nil {
+	if err := d.db.QueryRowContext(ctx, "SELECT count(*) FROM snapshots").Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("meta.ListSnapshots: count: %w", err)
 	}
 
-	rows, err := d.QueryContext(ctx, `
+	rows, err := d.db.QueryContext(ctx, `
 		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		ORDER BY timestamp DESC
@@ -87,7 +87,7 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 		WHERE timestamp IN (%s)
 		ORDER BY timestamp DESC`, strings.Join(placeholders, ","))
 
-	rows, err := d.QueryContext(ctx, query, args...)
+	rows, err := d.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: query: %w", err)
 	}
@@ -111,7 +111,7 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 // ErrNotFound when no row matches.
 func (d *DB) GetSnapshot(ctx context.Context, ts int64) (Snapshot, error) {
 	var s Snapshot
-	err := d.QueryRowContext(ctx, `
+	err := d.db.QueryRowContext(ctx, `
 		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		WHERE timestamp = ?`, ts).Scan(
@@ -130,7 +130,7 @@ func (d *DB) GetSnapshot(ctx context.Context, ts int64) (Snapshot, error) {
 // by id (the foreign key), not by the ArchiveBox timestamp.
 func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
 	var s Snapshot
-	err := d.QueryRowContext(ctx, `
+	err := d.db.QueryRowContext(ctx, `
 		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
 		FROM snapshots
 		WHERE id = ?`, id).Scan(
@@ -148,7 +148,7 @@ func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
 // CASCADE on the FKs automatically cleans up extractor_runs and step_outputs.
 // It returns ErrNotFound when no row matches.
 func (d *DB) DeleteSnapshot(ctx context.Context, ts int64) error {
-	res, err := d.ExecContext(ctx, `DELETE FROM snapshots WHERE timestamp = ?`, ts)
+	res, err := d.db.ExecContext(ctx, `DELETE FROM snapshots WHERE timestamp = ?`, ts)
 	if err != nil {
 		return fmt.Errorf("meta.DeleteSnapshot: %w", err)
 	}

@@ -54,7 +54,7 @@ func (d *DB) InsertRun(ctx context.Context, r ExtractorRun) (int64, error) {
 	if r.Error != "" {
 		errArg = r.Error
 	}
-	res, err := d.ExecContext(ctx, `
+	res, err := d.db.ExecContext(ctx, `
 		INSERT INTO extractor_runs (snapshot_id, extractor, status, started_at, finished_at, error)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		r.SnapshotID, r.Extractor, r.Status, startedAt, finishedAt, errArg)
@@ -90,7 +90,7 @@ func (d *DB) InsertStepOutput(ctx context.Context, runID int64, out StepOutput) 
 	if out.Error != "" {
 		errArg = out.Error
 	}
-	res, err := d.ExecContext(ctx, `
+	res, err := d.db.ExecContext(ctx, `
 		INSERT INTO step_outputs (run_id, name, filename, cmd, status, start_ts, end_ts, error)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		runID, out.Name, out.Filename, cmdArg, out.Status, startArg, endArg, errArg)
@@ -108,7 +108,7 @@ func (d *DB) InsertStepOutput(ctx context.Context, runID int64, out StepOutput) 
 // ordered by id ascending (the order they were recorded), each with its
 // StepOutputs populated (ordered by id).
 func (d *DB) ListRunsBySnapshot(ctx context.Context, snapshotID int64) ([]ExtractorRun, error) {
-	rows, err := d.QueryContext(ctx, `
+	rows, err := d.db.QueryContext(ctx, `
 		SELECT id, snapshot_id, extractor, status,
 		       COALESCE(started_at, 0), COALESCE(finished_at, 0), COALESCE(error, '')
 		FROM extractor_runs
@@ -159,7 +159,7 @@ func (d *DB) queryStepOutputs(ctx context.Context, ids []any) (map[int64][]StepO
 		FROM step_outputs
 		WHERE run_id IN (` + placeholders(len(ids)) + `)
 		ORDER BY id ASC`
-	rows, err := d.QueryContext(ctx, query, ids...)
+	rows, err := d.db.QueryContext(ctx, query, ids...)
 	if err != nil {
 		return nil, fmt.Errorf("meta.queryStepOutputs: query: %w", err)
 	}

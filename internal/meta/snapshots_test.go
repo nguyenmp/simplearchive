@@ -24,7 +24,7 @@ func TestCreateSnapshot_insertsRow(t *testing.T) {
 	}
 
 	var url string
-	err = db.QueryRowContext(context.Background(),
+	err = db.db.QueryRowContext(context.Background(),
 		"SELECT url FROM snapshots WHERE timestamp = ?", 1700000000000000,
 	).Scan(&url)
 	if err != nil {
@@ -34,7 +34,7 @@ func TestCreateSnapshot_insertsRow(t *testing.T) {
 		t.Errorf("url = %q, want https://example.com", url)
 	}
 	// A snapshot has no stored status; it derives from its extractor_runs.
-	if _, err := db.Exec("SELECT status FROM snapshots"); err == nil {
+	if _, err := db.db.Exec("SELECT status FROM snapshots"); err == nil {
 		t.Errorf("snapshots.status column should not exist")
 	}
 }
@@ -56,7 +56,7 @@ func TestUpdateSnapshot_setsTitle(t *testing.T) {
 	}
 
 	var title any
-	if err := db.QueryRowContext(context.Background(),
+	if err := db.db.QueryRowContext(context.Background(),
 		"SELECT title FROM snapshots WHERE timestamp = ?", ts,
 	).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
@@ -83,7 +83,7 @@ func TestUpdateSnapshot_nullTitleWhenEmpty(t *testing.T) {
 	}
 
 	var title any
-	if err := db.QueryRowContext(context.Background(),
+	if err := db.db.QueryRowContext(context.Background(),
 		"SELECT title FROM snapshots WHERE timestamp = ?", ts).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestUpsertSnapshot_insertsNewRow(t *testing.T) {
 
 	var url, title string
 	var createdAt, updatedAt int64
-	if err := db.QueryRowContext(context.Background(),
+	if err := db.db.QueryRowContext(context.Background(),
 		"SELECT url, title, created_at, updated_at FROM snapshots WHERE timestamp = ?",
 		e.Timestamp,
 	).Scan(&url, &title, &createdAt, &updatedAt); err != nil {
@@ -160,7 +160,7 @@ func TestUpsertSnapshot_nullTitleWhenEmpty(t *testing.T) {
 		t.Fatalf("UpsertSnapshot: %v", err)
 	}
 	var title any
-	if err := db.QueryRowContext(context.Background(),
+	if err := db.db.QueryRowContext(context.Background(),
 		"SELECT title FROM snapshots WHERE timestamp = ?", 1728277530511000).Scan(&title); err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestUpsertSnapshot_isIdempotentAndPreservesCreatedAt(t *testing.T) {
 		t.Fatalf("UpsertSnapshot (1): %v", err)
 	}
 	var createdAtAfterFirst int64
-	_ = db.QueryRowContext(context.Background(),
+	_ = db.db.QueryRowContext(context.Background(),
 		"SELECT created_at FROM snapshots WHERE timestamp = ?", ts).Scan(&createdAtAfterFirst)
 
 	// Re-import with refreshed fields; created_at must not change.
@@ -193,7 +193,7 @@ func TestUpsertSnapshot_isIdempotentAndPreservesCreatedAt(t *testing.T) {
 	}
 
 	var count, url, title string
-	if err := db.QueryRowContext(context.Background(),
+	if err := db.db.QueryRowContext(context.Background(),
 		"SELECT printf('%d', count(*)), url, title FROM snapshots WHERE timestamp = ?", ts,
 	).Scan(&count, &url, &title); err != nil {
 		t.Fatalf("query: %v", err)
@@ -209,7 +209,7 @@ func TestUpsertSnapshot_isIdempotentAndPreservesCreatedAt(t *testing.T) {
 	}
 
 	var createdAtAfterSecond int64
-	_ = db.QueryRowContext(context.Background(),
+	_ = db.db.QueryRowContext(context.Background(),
 		"SELECT created_at FROM snapshots WHERE timestamp = ?", ts).Scan(&createdAtAfterSecond)
 	if createdAtAfterSecond != createdAtAfterFirst {
 		t.Errorf("created_at changed: %d -> %d", createdAtAfterFirst, createdAtAfterSecond)
