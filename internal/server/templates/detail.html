@@ -55,9 +55,10 @@
 		{{range .Runs}}
 			<li>
 				<div class="flex items-baseline gap-2 text-sm">
-					<span class="font-mono font-semibold">{{.Extractor}}</span>
-					<span class="px-2 py-0.5 rounded-full text-xs font-medium {{statusClass .Status}}">{{.Status}}</span>
-					{{if .Error}}<span class="font-mono text-red-600 text-xs">{{.Error}}</span>{{end}}
+				<span class="font-mono font-semibold">{{.Extractor}}</span>
+				<span class="px-2 py-0.5 rounded-full text-xs font-medium {{statusClass .Status}}">{{.Status}}</span>
+				{{if $d := runDuration .StartedAt .FinishedAt}}<span class="text-xs text-gray-500" title="started {{formatTimestamp .StartedAt}}">{{$d}}</span>{{end}}
+				{{if .Error}}<span class="font-mono text-red-600 text-xs">{{.Error}}</span>{{end}}
 				</div>
 				{{if .Outputs}}
 				<ul class="ml-4 mt-1 w-fit text-sm font-mono text-gray-600 grid grid-cols-[8rem_auto_1fr] gap-x-2 gap-y-0.5">

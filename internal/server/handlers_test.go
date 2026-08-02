@@ -172,6 +172,57 @@ func TestHandleDetail_found(t *testing.T) {
 	}
 }
 
+func TestHandleDetail_showsRunDuration(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	seedSnapshots(t, db, 1)
+	const ts int64 = 1700000000000000
+
+	snap, err := db.GetSnapshot(context.Background(), ts)
+	if err != nil {
+		t.Fatalf("GetSnapshot: %v", err)
+	}
+	// A finished 14-second run shows its duration; a still-running run does not.
+	if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+		SnapshotID: snap.ID,
+		Extractor:  "wget",
+		Status:     "succeeded",
+		StartedAt:  ts,
+		FinishedAt: ts + 14_000_000,
+	}); err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
+	if _, err := db.InsertRun(context.Background(), meta.ExtractorRun{
+		SnapshotID: snap.ID,
+		Extractor:  "obelisk",
+		Status:     "running",
+		StartedAt:  ts,
+	}); err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: filepath.Join(t.TempDir(), "archive")}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+snapshot.Format(ts), nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	body := rec.Body.String()
+	// Duration in whole seconds, with the start time as a hover tooltip.
+	if !strings.Contains(body, `title="started `+formatTimestamp(ts)+`">14s</span>`) {
+		t.Errorf("body missing run duration with start-time tooltip: %q", body)
+	}
+	// The running (unfinished) obelisk run must not show a duration: only one
+	// duration tooltip should be rendered in total.
+	if n := strings.Count(body, `title="started `); n != 1 {
+		t.Errorf("duration tooltip count = %d, want 1 (unfinished runs show no duration): %q", n, body)
+	}
+}
+
 func TestHandleDetail_autoRefresh_pending(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)

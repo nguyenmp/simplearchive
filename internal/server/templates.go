@@ -40,6 +40,7 @@ func (r *renderer) page(name string) (*template.Template, error) {
 		"faviconPath":     faviconPath,
 		"timeAgo":         timeAgo,
 		"humanSize":       humanSize,
+		"runDuration":     runDuration,
 	})
 	if _, err := t.ParseFS(
 		templateFS,
@@ -104,6 +105,17 @@ func humanSize(n int64) string {
 	default:
 		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
 	}
+}
+
+// runDuration renders an extractor run's wall-clock duration in whole seconds,
+// e.g. "14s". It returns "" when the run has not finished (missing start or
+// finish timestamp) so pending/running runs show nothing.
+func runDuration(startedAt, finishedAt int64) string {
+	if startedAt == 0 || finishedAt == 0 || finishedAt < startedAt {
+		return ""
+	}
+	d := time.Duration(finishedAt-startedAt) * time.Microsecond
+	return fmt.Sprintf("%ds", int64(d.Round(time.Second).Seconds()))
 }
 
 // statusClass returns the Tailwind badge classes for an extractor run status.
