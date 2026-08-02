@@ -28,6 +28,10 @@
 				</div>
 				<a href="{{.URL}}" target="_blank" rel="noopener noreferrer" class="block text-xs text-gray-500 truncate hover:underline mt-0.5">{{.URL}}</a>
 			</div>
+			<div class="flex-shrink-0 text-right text-xs text-gray-500 pl-2">
+				<div class="whitespace-nowrap">{{.FileCount}} files</div>
+				<div class="text-gray-400 whitespace-nowrap">{{humanSize .TotalSize}}</div>
+			</div>
 		</div>
 	{{end}}
 	</div>

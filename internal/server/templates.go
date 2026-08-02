@@ -39,6 +39,7 @@ func (r *renderer) page(name string) (*template.Template, error) {
 		"statusClass":     statusClass,
 		"faviconPath":     faviconPath,
 		"timeAgo":         timeAgo,
+		"humanSize":       humanSize,
 	})
 	if _, err := t.ParseFS(
 		templateFS,
@@ -90,6 +91,18 @@ func timeAgo(ts int64) string {
 			return "1 day ago"
 		}
 		return fmt.Sprintf("%d days ago", day)
+	}
+}
+
+// humanSize renders a byte count as a human-readable string (B, KB, MB).
+func humanSize(n int64) string {
+	switch {
+	case n < 1024:
+		return fmt.Sprintf("%d B", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	default:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
 	}
 }
 

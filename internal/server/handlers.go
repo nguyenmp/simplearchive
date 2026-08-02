@@ -24,9 +24,16 @@ type addData struct {
 
 const defaultPageSize = 50
 
+// snapshotFileInfo wraps a snapshot with its on-disk file stats for the list view.
+type snapshotFileInfo struct {
+	meta.Snapshot
+	FileCount int
+	TotalSize int64
+}
+
 // listData is the view model for the list page.
 type listData struct {
-	Snapshots   []meta.Snapshot
+	Snapshots   []snapshotFileInfo
 	Total       int
 	Limit       int
 	Offset      int
@@ -50,6 +57,23 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	infos := make([]snapshotFileInfo, 0, len(snaps))
+	for _, snap := range snaps {
+		info := snapshotFileInfo{Snapshot: snap}
+		dir := archive.SnapshotDir(s.ArchiveRoot, snap.Timestamp)
+		_ = filepath.WalkDir(dir, func(full string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			info.FileCount++
+			if fi, err := d.Info(); err == nil {
+				info.TotalSize += fi.Size()
+			}
+			return nil
+		})
+		infos = append(infos, info)
+	}
+
 	pages := 0
 	if total > 0 {
 		pages = (total + limit - 1) / limit
@@ -57,7 +81,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	page := offset/limit + 1
 
 	data := listData{
-		Snapshots:  snaps,
+		Snapshots:  infos,
 		Total:      total,
 		Limit:      limit,
 		Offset:     offset,
@@ -76,6 +100,8 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 // detailData is the view model for the detail page.
 type detailData struct {
 	Snapshot meta.Snapshot
+	FileCount int
+	TotalSize int64
 	// FilePaths maps an on-disk filename to its URL path, so extractor
 	// outputs can link straight to the archived file.
 	FilePaths map[string]string
@@ -145,6 +171,10 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		data.FilePaths[rel] = urlPath
 		if !claimed[basename] {
 			data.OtherFiles = append(data.OtherFiles, fileLink{Name: rel, Path: urlPath})
+		}
+		data.FileCount++
+		if fi, err := d.Info(); err == nil {
+			data.TotalSize += fi.Size()
 		}
 		return nil
 	}); err != nil {

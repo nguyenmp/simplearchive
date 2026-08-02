@@ -244,6 +244,47 @@ func TestHandleDelete_removesSnapshot(t *testing.T) {
 	}
 }
 
+// TestHandleList_showsFileCountAndSize verifies that the list page renders
+// file counts and size for each snapshot.
+func TestHandleList_showsFileCountAndSize(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	ts := int64(1700000000000000)
+	if _, err := db.CreateSnapshot(context.Background(), "https://example.com", ts); err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+
+	root := filepath.Join(t.TempDir(), "archive")
+	dir := filepath.Join(root, snapshot.Format(ts))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "output.html"), []byte("<html></html>"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "favicon.ico"), []byte("ico"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	s := &Server{DB: db, ArchiveRoot: root}
+	r := s.Router()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "2 files") {
+		t.Errorf("list body missing file count; want '2 files' in body, got: %s", body)
+	}
+	if !strings.Contains(body, "B") {
+		t.Errorf("list body missing size; want human size in body")
+	}
+}
+
 func TestHandleDelete_notFound(t *testing.T) {
 	t.Parallel()
 	s := &Server{DB: newTestDB(t)}
@@ -296,5 +337,12 @@ func TestHandleDetail_showsNestedFiles(t *testing.T) {
 	}
 	if !strings.Contains(body, "output.html") {
 		t.Errorf("detail body missing top-level file; want output.html in body")
+	}
+	// File count and size
+	if !strings.Contains(body, "2 files") {
+		t.Errorf("detail body missing file count; want '2 files' in body")
+	}
+	if !strings.Contains(body, "B") {
+		t.Errorf("detail body missing size; want human size in body")
 	}
 }
