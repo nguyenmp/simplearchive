@@ -16,7 +16,7 @@ Backend in `go` for small binary footprint that also supports building web serve
 * slog for structured logging, no metrics or traces for now
 * initially simple, w/ 2 goroutines: one for the HTTP server, one for the task queue
 
-Frontend will be HTMX+ templates + tailwind, no SPA.  No need for a SPA.
+Frontend will be plain HTML templates + tailwind, no SPA.  No need for a SPA.
 
 Task engine:
 * goroutines
@@ -174,7 +174,7 @@ M1 — Sync ingest (CLI)
 M2 — Read + serve + web add
 - [x] Import 706 existing snapshots into meta.db (scan archive/*/index.json).
 - [x] simplearchive serve: HTTP server (chi). SQLite WAL + short transactions.
-- [x] HTMX list/detail views, tailwind. Add-URL form. Static file server (path-scoped + CSP sandbox + nosniff).
+- [x] HTML templates list/detail views, tailwind. Add-URL form. Static file server (path-scoped + CSP sandbox + nosniff).
 - [x] Local-run only.
 
 M3 — Richer extractors
