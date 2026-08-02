@@ -443,14 +443,18 @@ func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error)
 		return nil, fmt.Errorf("rg: %w", err)
 	}
 
+	return timestampsFromRipgrepOutput(s.ArchiveRoot, string(out)), nil
+}
+
+func timestampsFromRipgrepOutput(root string, output string) []int64 {
 	seen := make(map[int64]struct{})
 	var results []int64
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		rel, err := filepath.Rel(s.ArchiveRoot, line)
+		rel, err := filepath.Rel(root, line)
 		if err != nil {
 			continue
 		}
@@ -458,8 +462,7 @@ func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error)
 		if len(parts) == 0 {
 			continue
 		}
-		tsStr := parts[0]
-		ts, err := snapshot.Parse(tsStr)
+		ts, err := snapshot.Parse(parts[0])
 		if err != nil {
 			continue
 		}
@@ -481,5 +484,5 @@ func (s *Server) searchSnapshots(ctx context.Context, q string) ([]int64, error)
 		return 0
 	})
 
-	return results, nil
+	return results
 }
