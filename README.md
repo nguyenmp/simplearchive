@@ -21,15 +21,16 @@ Frontend will be plain HTML templates + tailwind, no SPA.  No need for a SPA.
 Task engine:
 * goroutines
 * SQLite backed task queue
-* Retry + backoff + DLQ
-* Per-job step logger
+* Retry + backoff + DLQ (planned, see M5)
+* Per-job step logger (planned, see M4)
 
 Extractors:
 * wget
-* chromedp / headless_shell -> screenshot, PDF, DOM
+* chromedp -> screenshot, PDF, DOM
 * obelisk -> single file HTML
 * curl
-* yt-dlp -> transcripts, youtube metadata, audio, video
+* yt-dlp -> transcripts, youtube metadata
+* headers -> response headers (JSON)
 
 Everything gets built into a docker image that gets deployed.
 
@@ -51,7 +52,7 @@ Snapshot status and `is_archived` are **not stored** — they are derived from t
 
 ### extractor_runs
 
-One row per extractor run for a snapshot (`wget`, `wget-favicon`, `headers`, `obelisk`, `ytdlp`, `chromedp`). The unit of work **and** the unit of retry. Steps are independent — no primary-fatal, no cancellation (a future bulk `UPDATE … SET status='skipped' WHERE status='pending'` can cancel if ever needed).
+One row per extractor run for a snapshot (`wget-favicon`, `headers`, `curl`, `wget`, `obelisk`, `ytdlp`, `chromedp`), plus `obelisk_proxy` and `chromedp_proxy` when `SOCKS5_PROXY` is set. The unit of work **and** the unit of retry. Steps are independent — no primary-fatal, no cancellation (a future bulk `UPDATE … SET status='skipped' WHERE status='pending'` can cancel if ever needed).
 
 - `id` INTEGER PRIMARY KEY AUTOINCREMENT
 - `snapshot_id` INTEGER NOT NULL REFERENCES snapshots(id)
@@ -142,17 +143,20 @@ $ archivebox init
 | `SERVE_ADDR`    | `127.0.0.1:8080` | Listen address for `simplearchive serve`.                                                          |
 | `YT_DLP_COOKIES`| (empty)          | Path to a cookies file passed to yt-dlp via `--cookies`. Netscape and JSON formats are supported.   |
 | `CHROME_CDP_URL`| (empty)          | Browser-level CDP websocket URL (e.g. `ws://sockpuppetbrowser:3000`). When set, the chromedp extractor drives this remote browser instead of launching a local `chromium` binary. |
-| `SOCKS5_PROXY`  | (empty)          | `socks5://` proxy URL. Enables the `*_proxy` extractor variants (curl, obelisk, chromedp) that re-archive each snapshot through the proxy. |
+| `SOCKS5_PROXY`  | (empty)          | `socks5://` proxy URL. Adds the `obelisk_proxy` and `chromedp_proxy` extractor variants that re-archive each snapshot through the proxy; `curl` and `headers` also fall back to the proxy when their direct request fails. |
 
 Pass through to the dev container with `-e`, e.g. `docker run --rm -e LOG_LEVEL=debug ...`.
 
 ## Production deployment
 
-`SERVE_ADDR` defaults to `127.0.0.1:8080` (localhost only). For production behind a reverse proxy, bind all interfaces so the proxy can reach it:
+`SERVE_ADDR` defaults to `127.0.0.1:8080` (localhost only). For production behind a reverse proxy, build the runtime image and bind all interfaces so the proxy can reach it (the runtime image already sets `SERVE_ADDR=0.0.0.0:8080` and runs `serve`):
 
 ```
-docker run --rm -it -v "$PWD:/app" -w /app -e SERVE_ADDR=0.0.0.0:8080 simplearchive-dev go run .
+docker build --target runtime -t simplearchive .
+docker run --rm -v "$PWD/archive:/data/archive" -v "$PWD/meta.db:/data/meta.db" -p 8080:8080 simplearchive
 ```
+
+(If you must run from the dev image instead, use `go run . serve`, not `go run .` — the bare command prints usage and exits.)
 
 ### Network isolation
 
