@@ -35,7 +35,7 @@ func TestEnqueue_RunNext_archivesSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
-	res, ran, err := RunNext(context.Background(), db, root)
+	res, ran, err := RunNext(context.Background(), db, root, nil)
 	if err != nil {
 		t.Fatalf("RunNext: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestRunNext_domFailure_recordsFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
-	res, ran, err := RunNext(context.Background(), db, root)
+	res, ran, err := RunNext(context.Background(), db, root, nil)
 	if err != nil {
 		t.Fatalf("RunNext: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestEnqueue_thenRunNext_drainsPendingRuns(t *testing.T) {
 		}
 	}
 
-	res, ran, err := RunNext(context.Background(), db, root)
+	res, ran, err := RunNext(context.Background(), db, root, nil)
 	if err != nil {
 		t.Fatalf("RunNext: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestRunNext_drainsQueueOneAtATime(t *testing.T) {
 
 	// RunNext claims and archives one snapshot per call, oldest first.
 	for i := 0; i < 2; i++ {
-		_, ran, err := RunNext(context.Background(), db, root)
+		_, ran, err := RunNext(context.Background(), db, root, nil)
 		if err != nil {
 			t.Fatalf("RunNext %d: %v", i, err)
 		}
@@ -285,7 +285,7 @@ func TestRunNext_drainsQueueOneAtATime(t *testing.T) {
 		}
 	}
 	// Queue is now empty.
-	_, ran, err := RunNext(context.Background(), db, root)
+	_, ran, err := RunNext(context.Background(), db, root, nil)
 	if err != nil {
 		t.Fatalf("RunNext drain: %v", err)
 	}
