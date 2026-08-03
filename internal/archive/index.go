@@ -215,16 +215,13 @@ func commandFor(extractor string, data IndexData, u *url.URL) []string {
 	}
 }
 
-// baseURL returns the scheme://host[:port] portion of u, matching ArchiveBox's
-// base_url field.
+// baseURL returns the scheme://host portion of u, matching ArchiveBox's
+// base_url field (scheme://domain, which excludes the port).
 func baseURL(u *url.URL) string {
-	if u.Host == "" {
+	if u.Hostname() == "" {
 		return ""
 	}
-	if u.Port() == "" {
-		return u.Scheme + "://" + u.Host
-	}
-	return u.Scheme + "://" + u.Host
+	return u.Scheme + "://" + u.Hostname()
 }
 
 // ReadIndex decodes a single snapshot's index.json into an IndexEntry. The

@@ -2,6 +2,7 @@ package archive
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -164,6 +165,30 @@ func TestWriteIndex_buildsHistoryFromSteps(t *testing.T) {
 	}
 	if dom := got.History["dom"]; len(dom) != 1 || dom[0].Cmd[0] != "wget" {
 		t.Errorf("history.dom = %v, want wget cmd", got.History["dom"])
+	}
+}
+
+func TestBaseURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{"no port", "https://example.com/foo", "https://example.com"},
+		{"with port", "http://example.com:8080/foo", "http://example.com"},
+		{"no host", "mailto:someone@example.com", ""},
+		{"custom scheme", "socks5://proxy.example.com:9050", "socks5://proxy.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := url.Parse(tt.url)
+			if err != nil {
+				t.Fatalf("url.Parse(%q): %v", tt.url, err)
+			}
+			if got := baseURL(u); got != tt.want {
+				t.Errorf("baseURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
 	}
 }
 
