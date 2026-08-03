@@ -67,7 +67,9 @@ func (e Extractor) Run(ctx context.Context, pageURL, dir string) ([]extractors.S
 		}
 		return steps, runErr
 	}
-	writeStepFiles(dir, steps, screenshot, pdf, dom)
+	if writeErr := writeStepFiles(dir, steps, screenshot, pdf, dom); writeErr != nil {
+		return steps, writeErr
+	}
 	return steps, nil
 }
 
