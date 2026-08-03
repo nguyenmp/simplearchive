@@ -63,38 +63,6 @@ func TestParseInfoJSON_extractsTitleAndWebpageURL(t *testing.T) {
 	}
 }
 
-func TestSameSite(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name string
-		a, b string
-		want bool
-	}{
-		{"exact", "https://www.youtube.com/watch?v=abc", "https://www.youtube.com/watch?v=abc", true},
-		{"shorts normalized to watch", "https://www.youtube.com/shorts/abc", "https://www.youtube.com/watch?v=abc", true},
-		{"mobile to www subdomain", "https://m.youtube.com/watch?v=abc", "https://www.youtube.com/watch?v=abc", true},
-		{"case insensitive", "https://WWW.YOUTUBE.COM/watch?v=abc", "https://www.youtube.com/watch?v=abc", true},
-		{"different subdomains, same site", "https://blog.example.com", "https://www.example.com", true},
-		{"different sites", "https://www.arscyni.cc/file/x.html", "https://www.youtube.com/watch?v=xyz", false},
-		{"blogspot subdomains are distinct sites", "https://foodwishes.blogspot.com", "https://other.blogspot.com", false},
-		{"youtu.be aliases to youtube.com", "https://youtu.be/abc", "https://www.youtube.com/watch?v=abc", true},
-		{"instagr.am aliases to instagram.com", "https://instagr.am/p/abc/", "https://www.instagram.com/p/abc/", true},
-		{"generic shortener is a different site", "https://bit.ly/abc", "https://www.youtube.com/watch?v=abc", false},
-		{"empty a", "", "https://www.youtube.com/watch?v=xyz", false},
-		{"empty b", "https://www.youtube.com/watch?v=xyz", "", false},
-		{"both empty", "", "", false},
-		{"unparseable", "://bad", "https://www.youtube.com", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := sameSite(tc.a, tc.b); got != tc.want {
-				t.Errorf("sameSite(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestParseMercuryJSONTitle_extractsTitle(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

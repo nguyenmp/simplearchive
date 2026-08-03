@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"html"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/nguyenmp/simplearchive/internal/extractors/obelisk"
 	"github.com/nguyenmp/simplearchive/internal/extractors/obeliskproxy"
 	"github.com/nguyenmp/simplearchive/internal/extractors/wget"
-	"golang.org/x/net/publicsuffix"
 )
 
 // ParseTitle extracts the contents of the first <title>...</title> element
@@ -55,48 +53,6 @@ func ParseInfoJSON(data []byte) (title, webpageURL, extractor string) {
 		return "", "", ""
 	}
 	return strings.TrimSpace(info.Title), strings.TrimSpace(info.WebpageURL), strings.TrimSpace(info.Extractor)
-}
-
-// domainAliases maps single-purpose shortener domains to the registered
-// domain of the site they alias, so e.g. a youtu.be link is the same site as
-// the youtube.com page yt-dlp canonicalizes it to. Generic shorteners used
-// by arbitrary destinations (bit.ly, ...) must not be listed here.
-var domainAliases = map[string]string{
-	"youtu.be":   "youtube.com",
-	"instagr.am": "instagram.com",
-}
-
-// sameSite reports whether a and b are URLs on the same site: equal
-// hostnames or equal registered domains (eTLD+1, after applying
-// domainAliases), case-insensitive. This treats "m.youtube.com" and
-// "www.youtube.com" as the same site while distinguishing a page from media
-// embedded from another domain. It returns false when either URL fails to
-// parse or has no hostname, so an absent webpage_url never matches.
-func sameSite(a, b string) bool {
-	urlA, urlParseErrA := url.Parse(a)
-	urlB, urlParseErrB := url.Parse(b)
-	if urlParseErrA != nil || urlParseErrB != nil {
-		return false
-	}
-	hostA, hostB := strings.ToLower(urlA.Hostname()), strings.ToLower(urlB.Hostname())
-	if hostA == "" || hostB == "" {
-		return false
-	}
-	if hostA == hostB {
-		return true
-	}
-	domainA, domainErrA := publicsuffix.EffectiveTLDPlusOne(hostA)
-	domainB, domainErrB := publicsuffix.EffectiveTLDPlusOne(hostB)
-	if domainErrA != nil || domainErrB != nil {
-		return false
-	}
-	if alias, ok := domainAliases[domainA]; ok {
-		domainA = alias
-	}
-	if alias, ok := domainAliases[domainB]; ok {
-		domainB = alias
-	}
-	return domainA == domainB
 }
 
 // ParseMercuryJSONTitle extracts the "title" field from a mercury/article.json
