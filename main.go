@@ -23,9 +23,12 @@ func main() {
 		logger.Error("failed to open meta.db", "path", dbPath, "err", err)
 		os.Exit(1)
 	}
-	defer db.Close()
 	logger.Info("opened meta.db", "path", dbPath)
 
 	cliApp := &cli.CLI{Logger: logger, DB: db}
-	os.Exit(cliApp.Run(context.Background(), os.Args[1:]))
+	// os.Exit skips deferred functions, so close the DB explicitly before
+	// exiting with the CLI's exit code.
+	code := cliApp.Run(context.Background(), os.Args[1:])
+	_ = db.Close()
+	os.Exit(code)
 }
