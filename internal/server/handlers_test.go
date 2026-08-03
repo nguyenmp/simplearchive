@@ -101,6 +101,28 @@ func TestHandleList_pagination(t *testing.T) {
 	}
 }
 
+func TestHandleList_paginationDegenerateLimit(t *testing.T) {
+	t.Parallel()
+	db := newTestDB(t)
+	seedSnapshots(t, db, 3)
+	s := &Server{DB: db}
+	r := s.Router()
+
+	// ?limit=0 previously divided by zero in pagination math; it must fall
+	// back to the default page size and render a normal page instead of
+	// panicking.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?limit=0", nil)
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200 (limit=0 must not panic)", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "3 total") {
+		t.Errorf("body missing rendered list for defaulted limit: %q", rec.Body.String())
+	}
+}
+
 func TestHandleDetail_found(t *testing.T) {
 	t.Parallel()
 	db := newTestDB(t)

@@ -86,6 +86,16 @@ func (s *Server) listSnapshotsData(r *http.Request) (listData, error) {
 	limit := parsePositiveInt(r, "limit", defaultPageSize)
 	offset := parsePositiveInt(r, "offset", 0)
 
+	// Clamp limit into [1, MaxLimit] so the pagination math below can never
+	// divide by zero (?limit=0) and the advertised page size matches what
+	// ListSnapshots actually returns (?limit too large is clamped internally).
+	if limit < 1 {
+		limit = defaultPageSize
+	}
+	if limit > meta.MaxLimit {
+		limit = meta.MaxLimit
+	}
+
 	snaps, total, err := s.DB.ListSnapshots(r.Context(), limit, offset)
 	if err != nil {
 		s.Logger.Error("list: query", "limit", limit, "offset", offset, "err", err)

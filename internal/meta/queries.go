@@ -29,11 +29,11 @@ var ErrNotFound = errors.New("snapshot not found")
 
 // ListSnapshots returns up to limit snapshots ordered newest-first, starting at
 // the given offset. The total row count (ignoring limit/offset) is returned
-// alongside so callers can render pagination. A limit <= 0 or > maxLimit is
-// clamped to maxLimit.
+// alongside so callers can render pagination. A limit <= 0 or > MaxLimit is
+// clamped to MaxLimit.
 func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, int, error) {
-	if limit <= 0 || limit > maxLimit {
-		limit = maxLimit
+	if limit <= 0 || limit > MaxLimit {
+		limit = MaxLimit
 	}
 	if offset < 0 {
 		offset = 0
