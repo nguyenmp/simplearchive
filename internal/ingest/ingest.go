@@ -50,11 +50,13 @@ func defaultPipeline() []extractors.Extractor {
 	proxy := proxyutil.EnvVar()
 	chromeRemoteURL := os.Getenv("CHROME_CDP_URL")
 	pipeline := []extractors.Extractor{
-		// Fast (~0-2s): lightweight fetches that return quickly and cover most sites.
-		wget.FaviconExtractor{},
-		headers.Extractor{ProxyURL: proxy},
+		// Title discovery first: curl/wget fetch the page HTML (fast, no images),
+		// which populates the title ASAP via archive.BestTitle. Favicon and
+		// headers follow as lightweight best-effort fetches (~0-2s).
 		curl.Extractor{ProxyURL: proxy},
 		wget.HTMLExtractor{},
+		wget.FaviconExtractor{},
+		headers.Extractor{ProxyURL: proxy},
 		// curl/wget fetches HTML only (no images), so it is consistently fast;
 		// obelisk inlines resources and can be slow (8s) on image-heavy pages.
 		obelisk.Extractor{},
