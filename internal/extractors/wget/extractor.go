@@ -2,7 +2,6 @@ package wget
 
 import (
 	"context"
-	"net/url"
 	"path/filepath"
 	"time"
 
@@ -21,7 +20,7 @@ func (e HTMLExtractor) Run(ctx context.Context, pageURL, dir string) ([]extracto
 	_, err := Fetch(ctx, pageURL, dir)
 	end := time.Now()
 	step := extractors.NewOutput("dom", OutputFile, start, end, err)
-	step.Cmd = []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, OutputFile), pageURL}
+	step.Cmd = wgetArgv(filepath.Join(dir, OutputFile), pageURL)
 	if err != nil {
 		return []extractors.Step{step}, err
 	}
@@ -42,20 +41,11 @@ func (e FaviconExtractor) Run(ctx context.Context, pageURL, dir string) ([]extra
 	_, err := FetchFavicon(ctx, pageURL, dir)
 	end := time.Now()
 	step := extractors.NewOutput("favicon", FaviconFile, start, end, err)
-	step.Cmd = faviconCmd(pageURL, dir)
+	if argv, argvErr := faviconArgv(pageURL, dir); argvErr == nil {
+		step.Cmd = argv
+	}
 	if err != nil {
 		return []extractors.Step{step}, err
 	}
 	return []extractors.Step{step}, nil
-}
-
-// faviconCmd builds the shell argv recorded for the favicon step, mirroring
-// archive.commandFor. It returns an empty list when the page URL cannot be
-// parsed (no host to look up).
-func faviconCmd(pageURL, dir string) []string {
-	u, err := url.Parse(pageURL)
-	if err != nil || u.Host == "" {
-		return nil
-	}
-	return []string{"wget", "--no-verbose", "--output-document=" + filepath.Join(dir, FaviconFile), faviconService + u.Hostname()}
 }
