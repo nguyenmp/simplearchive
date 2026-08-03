@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,7 +68,13 @@ func TestFaviconURL_buildsGoogleServiceURL(t *testing.T) {
 
 func TestFaviconURL_rejectsInvalidURL(t *testing.T) {
 	t.Parallel()
-	if _, err := faviconURL("not a url"); err == nil {
+	_, err := faviconURL("not a url")
+	if err == nil {
 		t.Fatal("faviconURL on invalid URL returned nil error")
+	}
+	// Guard against a past regression where url.Parse returning (nil, nil)
+	// with an empty host produced a garbage "%!w(<nil>)" message.
+	if strings.Contains(err.Error(), "%!w(") {
+		t.Errorf("faviconURL error contains a failed format verb: %q", err.Error())
 	}
 }

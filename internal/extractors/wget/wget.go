@@ -37,8 +37,11 @@ const faviconService = "https://www.google.com/s2/favicons?domain="
 // faviconURL builds the favicon-service URL for the host of pageURL.
 func faviconURL(pageURL string) (string, error) {
 	u, err := url.Parse(pageURL)
-	if err != nil || u.Host == "" {
+	if err != nil {
 		return "", fmt.Errorf("parse url %q: %w", pageURL, err)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("parse url %q: no host", pageURL)
 	}
 	return faviconService + u.Hostname(), nil
 }
