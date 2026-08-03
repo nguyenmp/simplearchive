@@ -72,14 +72,19 @@ type Step struct {
 }
 
 // Extractor archives a single URL into a snapshot directory. Run returns the
-// Steps it produced; a non-nil error means the extractor could not run at all
-// (see ErrSkipped). Per-output success or failure is reported in each Step's
-// Status, not via the returned error.
+// Steps it produced; each Step carries its own Status and Err, so per-output
+// success or failure lives on the Step, not in the returned error. The
+// returned error, when non-nil, signals that the run itself failed to execute:
+// ErrSkipped means the extractor could not run in this build/environment (a
+// best-effort skip that records no outputs), while any other non-nil error
+// marks the whole run failed with that error as the run's message. Callers
+// derive a run's terminal status from the aggregate of the Step statuses and
+// the returned error.
 type Extractor interface {
 	// Name is the extractor's registry/identifier (e.g. "wget", "chromedp"),
 	// distinct from the per-output Step.Name. It is used for logging and, later,
 	// for config-driven extractor selection.
 	Name() string
-	// Run archives url into dir, returning the outputs it wrote.
-	Run(ctx context.Context, url, dir string) ([]Step, error)
+	// Run archives pageURL into dir, returning the outputs it wrote.
+	Run(ctx context.Context, pageURL, dir string) ([]Step, error)
 }
