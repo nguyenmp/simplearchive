@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // Snapshot is the in-memory representation of a snapshots row. Title is the
@@ -27,6 +26,25 @@ type Snapshot struct {
 // ErrNotFound is returned by GetSnapshot when no row matches the timestamp.
 var ErrNotFound = errors.New("snapshot not found")
 
+// snapshotCols is the shared column list for every snapshots SELECT. Keep it in
+// sync with scanSnapshot: a column added here must be scanned there.
+const snapshotCols = "id, timestamp, url, COALESCE(title, ''), created_at, updated_at"
+
+// scanner is implemented by *sql.Rows and *sql.Row, which both scan into dest.
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+// scanSnapshot scans one snapshots row (as selected by snapshotCols) into a
+// Snapshot.
+func scanSnapshot(row scanner) (Snapshot, error) {
+	var snap Snapshot
+	if err := row.Scan(&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt); err != nil {
+		return Snapshot{}, err
+	}
+	return snap, nil
+}
+
 // ListSnapshots returns up to limit snapshots ordered newest-first, starting at
 // the given offset. The total row count (ignoring limit/offset) is returned
 // alongside so callers can render pagination. A limit <= 0 or > MaxLimit is
@@ -45,7 +63,7 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 	}
 
 	rows, err := d.db.QueryContext(ctx, `
-		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
+		SELECT `+snapshotCols+`
 		FROM snapshots
 		ORDER BY timestamp DESC
 		LIMIT ? OFFSET ?`, limit, offset)
@@ -56,8 +74,8 @@ func (d *DB) ListSnapshots(ctx context.Context, limit, offset int) ([]Snapshot, 
 
 	out := make([]Snapshot, 0, limit)
 	for rows.Next() {
-		var snap Snapshot
-		if err := rows.Scan(&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt); err != nil {
+		snap, err := scanSnapshot(rows)
+		if err != nil {
 			return nil, 0, fmt.Errorf("meta.ListSnapshots: scan: %w", err)
 		}
 		out = append(out, snap)
@@ -76,18 +94,16 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 		return nil, nil
 	}
 
-	placeholders := make([]string, len(timestamps))
 	args := make([]any, len(timestamps))
 	for i, timestamp := range timestamps {
-		placeholders[i] = "?"
 		args[i] = timestamp
 	}
 
-	query := fmt.Sprintf(`
-		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
+	query := `
+		SELECT ` + snapshotCols + `
 		FROM snapshots
-		WHERE timestamp IN (%s)
-		ORDER BY timestamp DESC`, strings.Join(placeholders, ","))
+		WHERE timestamp IN (` + placeholders(len(timestamps)) + `)
+		ORDER BY timestamp DESC`
 
 	rows, err := d.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -97,8 +113,8 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 
 	out := make([]Snapshot, 0, len(timestamps))
 	for rows.Next() {
-		var snap Snapshot
-		if err := rows.Scan(&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt); err != nil {
+		snap, err := scanSnapshot(rows)
+		if err != nil {
 			return nil, fmt.Errorf("meta.GetSnapshotsByTimestamps: scan: %w", err)
 		}
 		out = append(out, snap)
@@ -114,7 +130,7 @@ func (d *DB) GetSnapshotsByTimestamps(ctx context.Context, timestamps []int64) (
 func (d *DB) GetSnapshot(ctx context.Context, timestamp int64) (Snapshot, error) {
 	var snap Snapshot
 	err := d.db.QueryRowContext(ctx, `
-		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
+		SELECT `+snapshotCols+`
 		FROM snapshots
 		WHERE timestamp = ?`, timestamp).Scan(
 		&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt)
@@ -133,7 +149,7 @@ func (d *DB) GetSnapshot(ctx context.Context, timestamp int64) (Snapshot, error)
 func (d *DB) GetSnapshotByID(ctx context.Context, id int64) (Snapshot, error) {
 	var snap Snapshot
 	err := d.db.QueryRowContext(ctx, `
-		SELECT id, timestamp, url, COALESCE(title, ''), created_at, updated_at
+		SELECT `+snapshotCols+`
 		FROM snapshots
 		WHERE id = ?`, id).Scan(
 		&snap.ID, &snap.Timestamp, &snap.URL, &snap.Title, &snap.CreatedAt, &snap.UpdatedAt)
