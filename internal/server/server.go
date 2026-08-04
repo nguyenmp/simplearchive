@@ -65,6 +65,7 @@ func (s *Server) Router() http.Handler {
 	r.Post("/add", s.handleAddSubmit)
 	r.Get("/{timestamp}", s.handleDetail)
 	r.Post("/{timestamp}/delete", s.handleDelete)
+	r.Post("/{timestamp}/delete-file", s.handleDeleteFile)
 	r.Post("/{timestamp}/rerun", s.handleRerun)
 	r.Get("/archive/{timestamp}/*", s.handleArchiveFile)
 	return r

@@ -71,6 +71,13 @@
 								<div class="flex items-baseline gap-2">
 									<a href="{{index $.FilePaths .Filename}}" class="text-blue-600 hover:underline">{{.Filename}}</a>
 									{{if index $.FileSizes .Filename}}<span class="text-gray-400 text-xs">{{humanSize (index $.FileSizes .Filename)}}</span>{{end}}
+									{{if $.CanDeleteFiles}}
+									<form action="{{snapshotPath $.Snapshot.Timestamp}}/delete-file" method="post" class="ml-1"
+										  onsubmit="return confirm('Permanently delete this file?');">
+										<input type="hidden" name="filename" value="{{.Filename}}">
+										<button type="submit" class="text-xs text-red-600 hover:underline">delete</button>
+									</form>
+									{{end}}
 								</div>
 							{{else}}
 								<span>{{.Filename}}</span>
@@ -96,6 +103,13 @@
 			<li class="flex items-center gap-1">
 				<a href="{{.Path}}" class="text-blue-600 hover:underline font-mono">{{.Name}}</a>
 				<span class="text-xs text-gray-400 ml-0.5">{{humanSize .Size}}</span>
+				{{if and $.CanDeleteFiles (ne .Name "index.json")}}
+				<form action="{{snapshotPath $.Snapshot.Timestamp}}/delete-file" method="post" class="ml-1"
+					  onsubmit="return confirm('Permanently delete this file?');">
+					<input type="hidden" name="filename" value="{{.Name}}">
+					<button type="submit" class="text-xs text-red-600 hover:underline">delete</button>
+				</form>
+				{{end}}
 			</li>
 		{{end}}
 		</ul>

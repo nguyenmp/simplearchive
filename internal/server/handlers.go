@@ -178,6 +178,10 @@ type detailData struct {
 	FileCount           int
 	TotalSize           int64
 	AvailableExtractors []string // names from the default pipeline (for re-run dropdown)
+	// CanDeleteFiles is true when the snapshot has no pending or running
+	// extractor runs, i.e. the worker is not writing to this directory, so the
+	// per-file delete buttons are safe to show.
+	CanDeleteFiles bool
 	// FilePaths maps an on-disk filename to its URL path, so extractor
 	// outputs can link straight to the archived file.
 	FilePaths map[string]string
@@ -236,6 +240,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	data.Snapshot = snap
 	data.AvailableExtractors = ingest.DefaultExtractorNames()
 	data.Runs = runs
+	data.CanDeleteFiles = !isAnyRunNonTerminal(runs)
 
 	if err := s.render.render(w, "detail", data); err != nil {
 		s.Logger.Error("detail: render", "err", err)
@@ -366,6 +371,96 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// handleDeleteFile accepts POST /{timestamp}/delete-file: it deletes a single
+// archived file (identified by its path relative to the snapshot directory),
+// removes any step_outputs rows referencing it, and rebuilds index.json so the
+// on-disk index stays in sync. It refuses to delete index.json itself or to
+// touch a snapshot whose extractor runs are pending or running: the worker may
+// be about to (re)write files in that directory, which would race the delete
+// and the index.json rebuild. Only the last step matters for correctness here —
+// with every run terminal, no worker can claim the snapshot — so the file is
+// deleted after the guard passes.
+func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	timestampStr := chi.URLParam(r, "timestamp")
+	timestamp, err := snapshot.Parse(timestampStr)
+	if err != nil {
+		s.renderNotFound(w)
+		return
+	}
+
+	snap, err := s.DB.GetSnapshot(r.Context(), timestamp)
+	if err != nil {
+		if errors.Is(err, meta.ErrNotFound) {
+			s.renderNotFound(w)
+			return
+		}
+		s.Logger.Error("delete-file: query", "timestamp", timestampStr, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	filename := r.FormValue("filename")
+	if filename == "" {
+		http.Error(w, "filename is required", http.StatusBadRequest)
+		return
+	}
+	// Reject path traversal attempts outright: ".." segments are never valid
+	// in an archive filename (filepath.Clean below would silently neutralize
+	// them, which is fine for serving but surprising for a destructive op).
+	if strings.Contains(filename, "..") {
+		http.Error(w, "invalid filename", http.StatusBadRequest)
+		return
+	}
+
+	// Refuse while any run is pending or running, so no worker is (or is about
+	// to be) writing to this snapshot's directory.
+	runs, err := s.DB.ListRunsBySnapshot(r.Context(), snap.ID)
+	if err != nil {
+		s.Logger.Error("delete-file: list runs", "timestamp", timestampStr, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if isAnyRunNonTerminal(runs) {
+		http.Error(w, "cannot delete files while extractor runs are pending or running", http.StatusConflict)
+		return
+	}
+
+	// Resolve the file path under the snapshot dir, defending against path
+	// traversal (same shape as handleArchiveFile).
+	snapDir := archive.SnapshotDir(s.ArchiveRoot, timestamp)
+	full := filepath.Join(snapDir, filepath.Clean("/"+filename))
+	rel, err := filepath.Rel(snapDir, full)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		http.Error(w, "invalid filename", http.StatusBadRequest)
+		return
+	}
+	if rel == archive.IndexFile {
+		http.Error(w, "cannot delete index.json", http.StatusBadRequest)
+		return
+	}
+	info, err := os.Stat(full)
+	if err == nil && info.IsDir() {
+		http.Error(w, "cannot delete a directory", http.StatusBadRequest)
+		return
+	}
+
+	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+		s.Logger.Error("delete-file: remove", "timestamp", timestampStr, "filename", filename, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.DB.DeleteStepOutputsByFilename(r.Context(), snap.ID, filepath.Base(rel)); err != nil {
+		s.Logger.Error("delete-file: delete step outputs", "timestamp", timestampStr, "filename", filename, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	ingest.RebuildIndex(r.Context(), s.DB, snapDir, snap, s.Logger)
+
+	http.Redirect(w, r, snapshotPath(timestamp), http.StatusSeeOther)
 }
 
 // renderNotFound renders the 404 page with the correct status code.
