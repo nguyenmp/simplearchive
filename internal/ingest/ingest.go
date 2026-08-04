@@ -189,7 +189,7 @@ func runClaimedSnapshot(ctx context.Context, db *meta.DB, archiveRoot string, sn
 			}
 			snap.Title = title
 		}
-		rebuildIndex(ctx, db, dir, snap, log)
+		RebuildIndex(ctx, db, dir, snap, log)
 		if err := db.FinishRun(ctx, run.ID, status, nowMicros(), errMsg); err != nil {
 			log.Warn("ingest: finish run", "extractor", run.Extractor, "url", snap.URL, "timestamp", snap.Timestamp, "err", err)
 		}
@@ -268,18 +268,19 @@ func aggregateRunStatus(steps []extractors.Step) string {
 	return extractors.StatusSkipped
 }
 
-// rebuildIndex rewrites the per-snapshot index.json as a projection of the
+// RebuildIndex rewrites the per-snapshot index.json as a projection of the
 // snapshot's terminal extractor_runs + step_outputs. It is called after each
 // extractor finishes so the on-disk index reflects durable DB state (crash-safe
-// and resumable).
+// and resumable), and by the server's delete-file handler after a hand-deleted
+// file is removed so the index stops referencing it.
 //
 // The caller must hold the snapshot lock: a run for this snapshot must be
-// "running" while rebuildIndex writes. The single-running-run-per-snapshot
+// "running" while RebuildIndex writes. The single-running-run-per-snapshot
 // invariant (see meta.ClaimNextSnapshot) is what serializes index.json writes
 // across workers, so two workers never interleave writes to the same snapshot's
 // index.json. Calling this outside a run's "running" window risks a torn write
 // if another worker is archiving the same snapshot.
-func rebuildIndex(ctx context.Context, db *meta.DB, dir string, snap meta.Snapshot, log *slog.Logger) {
+func RebuildIndex(ctx context.Context, db *meta.DB, dir string, snap meta.Snapshot, log *slog.Logger) {
 	runs, err := db.ListRunsBySnapshot(ctx, snap.ID)
 	if err != nil {
 		log.Warn("ingest: list runs for index", "url", snap.URL, "timestamp", snap.Timestamp, "err", err)

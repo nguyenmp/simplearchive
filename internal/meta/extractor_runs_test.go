@@ -160,3 +160,78 @@ func TestListRunsBySnapshot_empty(t *testing.T) {
 		t.Fatalf("len = %d, want 0", len(runs))
 	}
 }
+
+func TestDeleteStepOutputsByFilename(t *testing.T) {
+	t.Parallel()
+	db, err := Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	const timestamp int64 = 1700000000000000
+	snapshotID, err := db.CreateSnapshot(context.Background(), "https://example.com", timestamp)
+	if err != nil {
+		t.Fatalf("CreateSnapshot: %v", err)
+	}
+	runID, err := db.InsertRun(context.Background(), ExtractorRun{
+		SnapshotID: snapshotID, Extractor: "wget", Status: "succeeded", StartedAt: timestamp, FinishedAt: timestamp,
+	})
+	if err != nil {
+		t.Fatalf("InsertRun: %v", err)
+	}
+	// Two outputs: output.html is deleted by filename; favicon.ico survives.
+	for _, out := range []StepOutput{
+		{RunID: runID, Name: "dom", Filename: "output.html", Status: "succeeded"},
+		{RunID: runID, Name: "favicon", Filename: "favicon.ico", Status: "succeeded"},
+	} {
+		if _, err := db.InsertStepOutput(context.Background(), runID, out); err != nil {
+			t.Fatalf("InsertStepOutput %s: %v", out.Name, err)
+		}
+	}
+	// A second snapshot's outputs must be untouched by the delete.
+	otherID, err := db.CreateSnapshot(context.Background(), "https://other.example", timestamp+1)
+	if err != nil {
+		t.Fatalf("CreateSnapshot other: %v", err)
+	}
+	otherRunID, err := db.InsertRun(context.Background(), ExtractorRun{
+		SnapshotID: otherID, Extractor: "wget", Status: "succeeded", StartedAt: timestamp, FinishedAt: timestamp,
+	})
+	if err != nil {
+		t.Fatalf("InsertRun other: %v", err)
+	}
+	if _, err := db.InsertStepOutput(context.Background(), otherRunID, StepOutput{
+		RunID: otherRunID, Name: "dom", Filename: "output.html", Status: "succeeded",
+	}); err != nil {
+		t.Fatalf("InsertStepOutput other: %v", err)
+	}
+
+	if err := db.DeleteStepOutputsByFilename(context.Background(), snapshotID, "output.html"); err != nil {
+		t.Fatalf("DeleteStepOutputsByFilename: %v", err)
+	}
+
+	runs, err := db.ListRunsBySnapshot(context.Background(), snapshotID)
+	if err != nil {
+		t.Fatalf("ListRunsBySnapshot: %v", err)
+	}
+	if len(runs) != 1 || len(runs[0].Outputs) != 1 {
+		t.Fatalf("outputs after delete = %+v, want 1 (favicon)", runs)
+	}
+	if got := runs[0].Outputs[0]; got.Name != "favicon" || got.Filename != "favicon.ico" {
+		t.Errorf("surviving output = %+v, want favicon.ico", got)
+	}
+
+	// The other snapshot's output.html row is untouched.
+	otherRuns, err := db.ListRunsBySnapshot(context.Background(), otherID)
+	if err != nil {
+		t.Fatalf("ListRunsBySnapshot other: %v", err)
+	}
+	if len(otherRuns) != 1 || len(otherRuns[0].Outputs) != 1 || otherRuns[0].Outputs[0].Filename != "output.html" {
+		t.Errorf("other snapshot outputs = %+v, want output.html intact", otherRuns)
+	}
+
+	// Deleting a filename with no matching rows is a no-op, not an error.
+	if err := db.DeleteStepOutputsByFilename(context.Background(), snapshotID, "no-such-file"); err != nil {
+		t.Errorf("DeleteStepOutputsByFilename with no match: %v", err)
+	}
+}

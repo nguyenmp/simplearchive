@@ -155,3 +155,20 @@ func (d *DB) DeleteStepOutputs(ctx context.Context, runID int64) error {
 	}
 	return nil
 }
+
+// DeleteStepOutputsByFilename removes every step_outputs row with the given
+// filename belonging to any of a snapshot's extractor runs. It is used when a
+// file is deleted by hand from the detail page so the archive index stops
+// referencing it. Filenames are stored as basenames (see ingest.runOne), so
+// nested files are matched by their basename too.
+func (d *DB) DeleteStepOutputsByFilename(ctx context.Context, snapshotID int64, filename string) error {
+	if _, err := d.db.ExecContext(ctx, `
+		DELETE FROM step_outputs
+		WHERE run_id IN (
+			SELECT id FROM extractor_runs WHERE snapshot_id = ?
+		)
+		  AND filename = ?`, snapshotID, filename); err != nil {
+		return fmt.Errorf("meta.DeleteStepOutputsByFilename: delete: %w", err)
+	}
+	return nil
+}
